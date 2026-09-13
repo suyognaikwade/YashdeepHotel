@@ -1,1 +1,10 @@
 decompiled_src/
+bin/
+obj/
+**/bin/**
+**/obj/**
+*.user
+*.suo
+.vs/
+.idea/
+*.cache

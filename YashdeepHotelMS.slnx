@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Application/">
+    <Project Path="src/Application/Yashdeep.Application/Yashdeep.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/Domain/">
+    <Project Path="src/Domain/Yashdeep.Domain/Yashdeep.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/Persistence/">
+    <Project Path="src/Persistence/Yashdeep.Persistence.Local/Yashdeep.Persistence.Local.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/Yashdeep.Shared/Yashdeep.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Yashdeep.Outbox.Tests/Yashdeep.Outbox.Tests.csproj" />
+  </Folder>
+</Solution>
