@@ -21,7 +21,7 @@ The following secrets are strictly prohibited from residing on, passing through,
 | **Cloud Database Credentials** | Cloud PostgreSQL connection strings, DB usernames, master passwords, connection pool tokens. | Edge devices access cloud data exclusively via authenticated REST/WebSocket APIs (`/api/v1/sync`). Direct database connections from edge devices are blocked at the cloud firewall/VPC boundary. |
 | **Master Encryption Keys** | KMS Root Keys, Database Master Keys (DEK/KEK root secrets), Envelope Encryption parent keys. | Key management operations are restricted to cloud HSMs (AWS KMS / Azure Key Vault / HashiCorp Vault). Edge devices only hold local database encryption keys generated per-device. |
 | **Cloud Administrator Credentials** | AWS/Azure IAM keys, Kubernetes cluster admin tokens, Cloudflare API tokens, DevOps pipeline secrets. | CI/CD pipelines and infrastructure management use OIDC short-lived identity federation. No human or machine credential for cloud management ever exists on client hardware. |
-| **JWT Signing Secrets** | HMAC-SHA256 private keys, RSA/ECDSA private signing keys used for issuing JWTs. | JWT issuance and signing occur solely within the cloud Identity Service (`/api/v1/auth/token`). Client applications only receive signed, short-lived JWT access tokens and public verification keys (JWKS). |
+| **JWT Signing Secrets** | HMAC-SHA256 private keys, Ed25519/RSA private signing keys used for issuing JWTs. | JWT issuance and signing occur solely within the cloud Identity Service (`/api/v1/auth/token`). Client applications only receive signed, short-lived JWT access tokens and public verification keys (JWKS). |
 | **Private Service Credentials** | Payment Gateway Secret Keys (Razorpay/Stripe API secrets), SMS Gateway API keys, SMTP passwords, LLM/AI tokens. | External API interactions are proxied through cloud microservices. Client devices receive ephemeral, scoped public keys or payment tokens (e.g., client session tokens for checkout widgets). |
 | **SaaS Platform Secrets** | Multi-tenant master configuration keys, global system flags, internal RPC secrets. | Infrastructure and tenant configurations are isolated within server-side memory and protected by cloud secret managers. |
 
@@ -193,7 +193,7 @@ Edge terminals are critical components of the SaaS architecture. Every device mu
 | Primitive | Algorithm / Standard | Specification |
 | :--- | :--- | :--- |
 | **Symmetric Encryption** | AES-256-GCM | Authenticated Encryption with Associated Data (AEAD) |
-| **Asymmetric Signing** | ECDSA / RSA | ECDSA with P-256 (secp256r1) or RSA-4096 |
+| **Asymmetric Signing** | Ed25519 / RSA | Ed25519 (EdDSA) or RSA-4096 / ECDSA P-256 |
 | **Asymmetric Key Exchange** | ECDH | Elliptic Curve Diffie-Hellman over Curve25519 |
 | **Hashing & Digests** | SHA-256 / SHA-512 | Cryptographic hash functions |
 | **Key Derivation (KDF)** | HKDF / Argon2id / PBKDF2 | HKDF-SHA256 for key derivation |

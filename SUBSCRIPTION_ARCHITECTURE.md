@@ -76,7 +76,7 @@ The subscription system defines standard commercial tiers, each targeted at spec
 │ • Thermal ESC/POS Printing    │ • Multi-Tier Stock (Godown/Peg)│ • Centralized Master Menu     │
 │ • Dynamic UPI QR Integration  │ • QuestPDF Custom Layouts      │ • Custom SLA & Dedicated API  │
 │ • SQLite Edge Outbox Sync     │ • Advanced Sales Analytics     │ • Custom Feature Flags        │
-│ • 7 Days Offline Token Max    │ • 30 Days Offline Token Max    │ • 60 Days Offline Token Max   │
+│ • 7 Days Token + 7D Grace     │ • 30 Days Token + 7D Grace     │ • 60 Days Token + 7D Grace    │
 └───────────────────────────────┴────────────────────────────────┴───────────────────────────────┘
 ```
 
@@ -251,7 +251,7 @@ The complete subscription lifecycle is modeled as a deterministic Finite State M
 
 ### Key Security & Authority Directives
 1. **Clock Skew & Tamper Resistance**: The local POS client cross-verifies monotonic hardware clock counters (system uptime ticks) against token issuance dates to detect local OS system clock tampering (e.g. setting system clock backward to extend license).
-2. **Server-Issued Cryptographic Signatures**: Entitlement payloads are signed by the Cloud Authority using **RS256** (RSA-SHA256) or **Ed25519**. POS clients verify token signatures using public keys fetched during cloud sync.
+2. **Server-Issued Cryptographic Signatures**: Entitlement payloads are signed by the Cloud Authority using **Ed25519** (EdDSA) or **RS256** (RSA-SHA256 fallback). POS clients verify token signatures using public verification keys cached locally in SQLite.
 3. **Zero Local License Generators**: Edge terminals possess ONLY public verification keys. License generation or modification on the edge terminal is mathematically impossible.
 
 ---

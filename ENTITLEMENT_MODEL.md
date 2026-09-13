@@ -6,7 +6,7 @@ This document specifies the dynamic entitlement evaluation engine, granular feat
 
 ### Core Entitlement Principles
 1. **Dynamic Evaluation**: The Blazor Hybrid client client binaries MUST NOT hardcode plan checks (e.g., `if (plan == "Pro")`). Instead, UI components and business handlers query a dynamic capability service: `IEntitlementService.HasFeature("excise_fl3_compliance")` or `IEntitlementService.GetLimit("max_devices")`.
-2. **Offline Resilience via Cryptographic Claims**: Entitlements and capacity limits are bundled into a cryptographically signed **Entitlement Token** (JSON Web Token / JWS format using **RS256** or **Ed25519**).
+2. **Offline Resilience via Cryptographic Claims**: Entitlements and capacity limits are bundled into a cryptographically signed **Entitlement Token** (JSON Web Token / JWS format using **Ed25519** or **RS256** fallback).
 3. **Local SQLite Cache**: Terminals cache the signed Entitlement Token locally in SQLite. The terminal validates the token's cryptographic signature offline using the Cloud Authority's Public Key.
 4. **Deterministic Grace Expiry**: Tokens specify both `ExpiresAt` (standard cloud check-in interval) and `OfflineGraceExpiresAt` (absolute hard lock date if offline).
 
@@ -141,7 +141,7 @@ CREATE TABLE subscription_cache (
     expires_at INTEGER NOT NULL,         -- Token expiration timestamp
     offline_grace_exp INTEGER NOT NULL,  -- Absolute offline lock timestamp
     hardware_fingerprint TEXT NOT NULL,  -- Bound hardware ID
-    public_key_pem TEXT NOT NULL         -- Cloud RSA Public Key for validation
+    public_key_pem TEXT NOT NULL         -- Cloud Ed25519 / RSA Public Key for validation
 );
 ```
 
@@ -150,7 +150,7 @@ Every time the POS application initializes or performs a restricted capability c
 
 1. **Read Cached Token**: Load `signed_token` string from SQLite `subscription_cache`.
 2. **Retrieve Public Key**: Retrieve `public_key_pem` stored in secure application vault / SQLite.
-3. **Verify Signature**: Perform RSA-SHA256 (RS256) signature verification on the JWS payload. If signature is invalid or tampered with, **immediately halt write operations** and switch to Read-Only mode.
+3. **Verify Signature**: Perform Ed25519 or RS256 signature verification on the JWS payload. If signature is invalid or tampered with, **immediately halt write operations** and switch to Read-Only mode.
 4. **Hardware Fingerprint Check**: Compare `hardware_fingerprint` in payload against local machine BIOS GUID / MAC hash. If mismatch, token is rejected (prevents copying SQLite database file to unauthorized hardware).
 5. **Timestamp Validation**:
    - Verify `iat <= current_time` (Issued at or before now).

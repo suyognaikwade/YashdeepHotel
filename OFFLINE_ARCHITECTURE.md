@@ -228,7 +228,7 @@ Each POS terminal generates a unique cryptographic identity at installation:
 - **Device Identifiers:** Hardware fingerprints combining motherboard UUID, MAC address, and secure storage container GUID.
 - **Client Certificate / JWT Token:**
   - Device registers with the cloud gateway during online onboarding.
-  - Receives an X.509 Device Certificate or long-lived RS256 Device JWT signed by Cloud Authority.
+  - Receives an X.509 Device Certificate or long-lived Ed25519 / RS256 Device JWT signed by Cloud Authority.
   - Token embeds claims: `tenant_id`, `branch_id`, `device_id`, `device_role` (`PrimaryPOS`, `OrderTablet`, `BarTerminal`).
 
 ### 7.2 Offline Entitlement Cache & Subscription Grace Period

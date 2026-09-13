@@ -120,7 +120,7 @@ This document defines the **authoritative system architecture** for modernizing 
 - **Responsibilities**:
   - Plan management (e.g., *Basic Restaurant*, *Premium Bar & Excise*, *Enterprise Multi-Branch*).
   - Feature entitlement checking (e.g. State Excise FL-III module enabled/disabled based on license tier).
-  - Edge offline grace period enforcement (e.g. Edge client operates up to 30 days offline before requiring subscription heartbeat renewal).
+  - Edge offline grace period enforcement (e.g. Edge client operates up to 30 days token lifespan plus 7-day soft grace period before requiring cloud re-authentication).
 
 ### 3.10 Synchronization Service (Outbox Engine)
 - **Architecture**:
