@@ -1,5 +1,5 @@
 ﻿-- Schema extracted from YashdeepHotelMS dinurss.mdb
--- Password: rss1008
+-- Password: <PRODUCTION_MDB_PASSWORD>
 -- Date: 2026-09-13 18:02:21
 
 CREATE TABLE [AccountHead] (

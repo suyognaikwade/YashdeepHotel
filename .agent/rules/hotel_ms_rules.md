@@ -8,9 +8,9 @@ These rules govern all AI agent actions within the `YashdeepHotelMS` workspace.
 - Current Repository State: Legacy binaries and database (`RSS26/`), extracted schemas (`schema_extracted/`), comprehensive domain documentation (`docs/`), and target modernization specs (.NET 9 + Blazor Hybrid + SQLite + PostgreSQL).
 
 ## 2. Security & Credentials Rules
-- Production database `RSS26/dinurss.mdb` password: `rss1008`.
-- Backup databases (`dinurss - Copy.mdb`, `OLD.mdb`) password: `dinu`.
-- Default application logins: `Admin` (PW: `333`), `ADMIN` (PW: `admin`).
+- Production database `RSS26/dinurss.mdb` password: `<PRODUCTION_MDB_PASSWORD>`.
+- Backup databases (`dinurss - Copy.mdb`, `OLD.mdb`) Password: `<BACKUP_MDB_PASSWORD>`.
+- Default application logins: `Admin` (PW: `<DEFAULT_ADMIN_PASSWORD>`), `ADMIN` (PW: `<DEFAULT_ADMIN_PASSWORD>`).
 - NEVER commit plain-text credentials in new code; use environment variables, user secrets, or Key Vault.
 
 ## 3. Architecture & Target Stack Rules

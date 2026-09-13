@@ -65,9 +65,9 @@ This document summarizes the findings from analyzing the **RSS (Restaurant Sales
   ```
   Provider=Microsoft.Jet.OLEDB.4.0;Data Source=|DataDirectory|\rss.mdb
   Provider=Microsoft.Jet.OLEDB.4.0;Data Source=|DataDirectory|\dinu.mdb
-  Provider=Microsoft.Jet.OLEDB.4.0;Data Source=|DataDirectory|\dinurss.mdb;Persist Security Info=True;Jet OLEDB:Database Password=dinu
+  Provider=Microsoft.Jet.OLEDB.4.0;Data Source=|DataDirectory|\dinurss.mdb;Persist Security Info=True;Jet OLEDB:Database Password=<BACKUP_MDB_PASSWORD>
   ```
-- **Database Password**: `dinu` (confirmed from binary strings)
+- **Database Password**: `<BACKUP_MDB_PASSWORD>` (confirmed from binary strings)
 
 ### Forms Identified (100+ from resource names)
 Key functional areas:
@@ -99,28 +99,24 @@ Key functional areas:
 
 ---
 
-## 4. Database Access Issues
+## 4. Database Access & Schema Extraction Status
 
-### Connection Problems
-All three `.mdb` files reject connections with **"Not a valid password"** error using:
-- `Microsoft.Jet.OLEDB.4.0` (not registered on 64-bit systems)
-- `Microsoft.ACE.OLEDB.12.0` (installed but password rejected)
+### Connection Status (RESOLVED)
+The production database password was successfully recovered from the Jet 4.0 header XOR mask:
+- **`RSS26/dinurss.mdb`**: Password **`<PRODUCTION_MDB_PASSWORD>`** (22.5 MB production DB, 105 active user tables).
+- **`dinurss - Copy.mdb` / `OLD.mdb`**: Password **`<BACKUP_MDB_PASSWORD>`** (historical backups).
 
-### Password Attempted
-- `dinu` (from binary strings)
-- Empty password
-- Various ACE/Jet provider combinations
+Connection test succeeds via PowerShell OLEDB:
+```powershell
+$c = New-Object System.Data.OleDb.OleDbConnection('Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=<PRODUCTION_MDB_PASSWORD>;');
+$c.Open(); Write-Host 'Connected Successfully!'; $c.Close()
+```
 
-### Possible Causes
-1. **Database corruption** or version mismatch
-2. **Different password** than embedded in executable (maybe changed at runtime)
-3. **Workgroup security** (MDW file) required
-4. **64-bit vs 32-bit** OLEDB provider mismatch
-
-### Workaround Needed
-- Install 32-bit Access Database Engine
-- Use `mdbtools` (Linux) or Access 32-bit to export schema
-- Try opening in Microsoft Access directly
+### Schema & Data Extraction Complete
+All **105 user tables** and **1,000+ columns** have been fully extracted and documented:
+- **PostgreSQL DDL**: [`schema_extracted/postgres_schema.sql`](schema_extracted/postgres_schema.sql)
+- **Table Inventory**: [`schema_extracted/tables_inventory.csv`](schema_extracted/tables_inventory.csv)
+- **Schema Documentation**: [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md)
 
 ---
 

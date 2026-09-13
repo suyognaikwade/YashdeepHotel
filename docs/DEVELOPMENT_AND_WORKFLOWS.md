@@ -31,8 +31,8 @@ The following table documents actual, tested commands used in this repository.
 ### 2.1 Database Extraction & Inspection Commands
 
 ```powershell
-# 1. Test Access MDB connectivity using recovered password 'rss1008'
-powershell -Command "$c = New-Object System.Data.OleDb.OleDbConnection('Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=rss1008;'); $c.Open(); Write-Host 'SUCCESS!'; $c.Close()"
+# 1. Test Access MDB connectivity using recovered password '<PRODUCTION_MDB_PASSWORD>'
+powershell -Command "$c = New-Object System.Data.OleDb.OleDbConnection('Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=<PRODUCTION_MDB_PASSWORD>;'); $c.Open(); Write-Host 'SUCCESS!'; $c.Close()"
 
 # 2. Re-run complete schema extraction to schema_extracted/
 python scratch\run_extract_schema.py
@@ -133,7 +133,7 @@ A feature or pull request is considered **Done** when:
 | `0x80004005: Jet database engine stopped process` | SMB file sharing lock contention across multiple POS PCs accessing `dinurss.mdb`. | SQLite WAL mode per terminal + Outbox background HTTP sync to cloud PostgreSQL. |
 | `0x80004005: Search key not found in any record` | Corrupted B-Tree indices in Access `.mdb` due to power cuts during write operations. | ACID compliant transactional engines with Write-Ahead Logging. |
 | `0x80040E10: No value given for required parameters` | Empty UI inputs concatenated directly into dynamic SQL queries (`WHERE TABLE_NO=''`). | Strongly-typed EF Core parameterized queries with FluentValidation rules. |
-| `0x80040E4D: Not a valid password` | Wrong database password passed during OleDb connection initialization. | Always supply recovered password `rss1008` when opening `RSS26/dinurss.mdb`. |
+| `0x80040E4D: Not a valid password` | Wrong database password passed during OleDb connection initialization. | Always supply recovered password `<PRODUCTION_MDB_PASSWORD>` when opening `RSS26/dinurss.mdb`. |
 
 ---
 

@@ -66,12 +66,21 @@
 
 ---
 
-## Database Schema Extraction (Requires 32-bit Access/ACE)
+## Database Schema Extraction (32-bit ACE / mdbtools)
+
+> **Extracted Assets Ready**: Schema extraction has been completed. Extracted files are available at:
+> - [`schema_extracted/postgres_schema.sql`](schema_extracted/postgres_schema.sql) (PostgreSQL DDL for all 105 user tables)
+> - [`schema_extracted/tables_inventory.csv`](schema_extracted/tables_inventory.csv) (Table & row inventory)
+> - [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) (Complete column-level schema documentation)
+
+### Production Database Credentials
+- Primary Production DB (`RSS26/dinurss.mdb`): Password **`<PRODUCTION_MDB_PASSWORD>`**
+- Backup Databases (`dinurss - Copy.mdb`, `OLD.mdb`): Password **`<BACKUP_MDB_PASSWORD>`**
 
 ### Method 1: Microsoft Access (32-bit)
 1. Install **32-bit Microsoft Access** or **32-bit Access Database Engine**
 2. Open `dinurss.mdb` in Access
-3. Enter password: `dinu` (from binary strings)
+3. Enter password: **`<PRODUCTION_MDB_PASSWORD>`**
 4. External Data → Export → Text File / XML / SQL Server
 
 ### Method 2: mdbtools (Linux/WSL2) - Recommended
@@ -97,7 +106,7 @@ done
 ### Method 3: PowerShell with 32-bit ACE (if installed)
 ```powershell
 # Must run in 32-bit PowerShell: C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe
-$connStr = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\path\dinurss.mdb;Jet OLEDB:Database Password=dinu;"
+$connStr = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=<PRODUCTION_MDB_PASSWORD>;"
 $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
 $conn.Open()
 $schema = $conn.GetSchema("Tables")

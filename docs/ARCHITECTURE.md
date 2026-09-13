@@ -46,7 +46,7 @@ This document outlines the architectural blueprint of the **Yashdeep Hotel Manag
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │             Microsoft Access Jet 4.0 Database (dinurss.mdb)            │
-│               Password: "rss1008" | 105 User Tables                    │
+│               Password: "<PRODUCTION_MDB_PASSWORD>" | 105 User Tables                    │
 │   Shared over Windows LAN File Sharing (SMB) to multiple POS terminals │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -62,7 +62,7 @@ This document outlines the architectural blueprint of the **Yashdeep Hotel Manag
    - Concurrent actions between windows can lead to race conditions in the UI thread.
 3. **Data Access Layer (`RSS.ClassDB`)**:
    - Uses `System.Data.OleDb.OleDbConnection` with connection string:
-     `Provider=Microsoft.ACE.OLEDB.12.0;Data Source=|DataDirectory|\dinurss.mdb;Jet OLEDB:Database Password=rss1008;`
+     `Provider=Microsoft.ACE.OLEDB.12.0;Data Source=|DataDirectory|\dinurss.mdb;Jet OLEDB:Database Password=<PRODUCTION_MDB_PASSWORD>;`
    - Direct inline SQL concatenation (e.g. `INSERT INTO BILLFINAL SELECT * FROM [BILLFINAL_Dayend] where FORMAT(DATE,'yyyy-MM-dd')='...`).
 4. **Day-End Archive Pattern**:
    - Rather than using temporal indexing, active transaction tables (`BILLFINAL`, `finalbill`, `KOTFINAL`, `KOTDETAIL`, `GrandBillDetails`) are kept minimal during business hours.
@@ -80,7 +80,7 @@ This document outlines the architectural blueprint of the **Yashdeep Hotel Manag
 | `0x80004005: The search key was not found in any record` | Corrupted B-Tree indices in Access `.mdb` caused by sudden power cuts, network drops, or write collisions. | Lack of write-ahead logging (WAL) and lack of ACID crash-recovery in Jet 4.0. |
 | `0x80040E10: No value given for one or more required parameters` | Empty UI text fields concatenated into dynamic SQL queries without parameterized validation (e.g. `TABLE_NO=''`). | Lack of input sanitization and parameterized queries. |
 | `0x80040E37: Could not find output table 'KOTDETAIL_TEMP'` | Dynamic temporary table creation collision when multiple terminals trigger KOT printing simultaneously. | Schema modification at runtime inside operational transaction paths. |
-| `0x80040E4D: Not a valid password` | Hardcoded password mismatch (`dinu` in older binaries vs `rss1008` in production `dinurss.mdb`). | Hardcoded credentials without configuration flexibility. |
+| `0x80040E4D: Not a valid password` | Hardcoded password mismatch (`dinu` in older binaries vs `<PRODUCTION_MDB_PASSWORD>` in production `dinurss.mdb`). | Hardcoded credentials without configuration flexibility. |
 
 ---
 

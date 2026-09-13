@@ -22,10 +22,10 @@ Before beginning any task in this repository, you **must** read and understand t
 | Asset / Parameter | Value / Placeholder | Details |
 | :--- | :--- | :--- |
 | **Primary Database File** | `RSS26/dinurss.mdb` | 22.5 MB production database (105 user tables) |
-| **`dinurss.mdb` Password** | `rss1008` | Recovered from Jet 4.0 header XOR mask |
-| **Backup Databases** | `dinurss - Copy.mdb`, `OLD.mdb` | Password: `dinu` |
-| **Default App Logins** | `Admin` / `333`<br>`ADMIN` / `admin` | Found in `Login` table |
-| **Master Date Lock PW** | `333` / dynamic master | Found in `dateLckMaster` |
+| **`dinurss.mdb` Password** | `<PRODUCTION_MDB_PASSWORD>` | Recovered from Jet 4.0 header XOR mask |
+| **Backup Databases** | `dinurss - Copy.mdb`, `OLD.mdb` | Password: `<BACKUP_MDB_PASSWORD>` |
+| **Default App Logins** | `Admin` / `<DEFAULT_ADMIN_PASSWORD>`<br>`ADMIN` / `<DEFAULT_ADMIN_PASSWORD>` | Found in `Login` table |
+| **Master Date Lock PW** | `<DEFAULT_ADMIN_PASSWORD>` / dynamic master | Found in `dateLckMaster` |
 | **Hotel Trade Name** | `HOTEL YASHDEEP` | Location: Bhenda / Nanded, Maharashtra |
 | **State Excise License** | `FL III-2151444022D8ADF7` | Maharashtra State Excise FL-III Hotel/Club License |
 | **VAT TIN** | `27900111779v` | State Code 27 (Maharashtra) |
@@ -63,9 +63,9 @@ YashdeepHotelMS/
     ├── RSS.exe                        # Primary WinForms executable (.NET 4.0)
     ├── RSS_LONGLIFE.exe               # Variant executable for long-life billing
     ├── RSSUTILITYNEW.exe              # Utility executable tool
-    ├── dinurss.mdb                    # Production database (Password: rss1008)
-    ├── dinurss - Copy.mdb             # Backup database (Password: dinu)
-    ├── OLD.mdb                        # Historical database (Password: dinu)
+    ├── dinurss.mdb                    # Production database (Password: <PRODUCTION_MDB_PASSWORD>)
+    ├── dinurss - Copy.mdb             # Backup database (Password: <BACKUP_MDB_PASSWORD>)
+    ├── OLD.mdb                        # Historical database (Password: <BACKUP_MDB_PASSWORD>)
     ├── nwitem5.rpt / nwitem5.vb       # Item sales Crystal Report & VB.NET wrapper
     ├── Log/                           # 44 monthly error logs from 2022 to 2026
     └── PDF/                           # Sample generated PDF reports
@@ -100,7 +100,7 @@ YashdeepHotelMS/
    - **Counter**: Bar / Dispensing counter
    - **Day End**: Daily closing audit where active tables move to `*_Dayend` and counters reset
 3. **Database Access**:
-   - Always use password `rss1008` when accessing `RSS26/dinurss.mdb`.
+   - Always use password `<PRODUCTION_MDB_PASSWORD>` when accessing `RSS26/dinurss.mdb`.
    - Modern target stack must use **PostgreSQL** for cloud and **SQLite** for edge POS terminals.
 4. **Target Modern Stack**:
    - Backend / API: .NET 9 Web API + EF Core + PostgreSQL
@@ -149,7 +149,7 @@ YashdeepHotelMS/
 
 ```powershell
 # 1. Test Access MDB database connection with recovered password
-powershell -Command "$c = New-Object System.Data.OleDb.OleDbConnection('Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=rss1008;'); $c.Open(); Write-Host 'Connected Successfully!'; $c.Close()"
+powershell -Command "$c = New-Object System.Data.OleDb.OleDbConnection('Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=<PRODUCTION_MDB_PASSWORD>;'); $c.Open(); Write-Host 'Connected Successfully!'; $c.Close()"
 
 # 2. Extract database schema and tables inventory (Linux / WSL)
 bash extract_schema.sh

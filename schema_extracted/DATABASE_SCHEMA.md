@@ -2,7 +2,7 @@
 
 **Database File**: `RSS26/dinurss.mdb`
 **Database Engine**: Microsoft Jet 4.0 / Access 2000 (Protected)
-**Recovered Password**: `rss1008`
+**Recovered Password**: `<PRODUCTION_MDB_PASSWORD>`
 **Total Tables**: 105
 
 | Table Name | Row Count | Columns Count | Key Columns |

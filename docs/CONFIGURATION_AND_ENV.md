@@ -15,7 +15,7 @@ The following matrix documents all environment variables used by the modern .NET
 | `ASPNETCORE_ENVIRONMENT` | **Required** | Defines runtime environment | `Development`, `Staging`, `Production` |
 | `ConnectionStrings__PostgreSQL` | **Required** | Cloud PostgreSQL server connection string | `Host=cloud-db.internal;Port=5432;Database=yashdeep_hotel;Username=app_user;Password=YOUR_POSTGRES_PASSWORD_HERE` |
 | `ConnectionStrings__Sqlite` | **Required** | Local edge POS SQLite database path | `Data Source=C:\YashdeepPOS\Data\local_pos.db;` |
-| `ConnectionStrings__LegacyAccessMdb` | Optional | Path to legacy Access MDB for data ingestion | `Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=rss1008;` |
+| `ConnectionStrings__LegacyAccessMdb` | Optional | Path to legacy Access MDB for data ingestion | `Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=<PRODUCTION_MDB_PASSWORD>;` |
 | `JwtSettings__SecretKey` | **Required** | Secret key for signing JWT tokens | `YOUR_SUPER_SECRET_JWT_KEY_MIN_32_CHARS_LONG` |
 | `JwtSettings__Issuer` | **Required** | Token issuer claim | `https://api.yashdeephotel.com` |
 | `JwtSettings__Audience` | **Required** | Token audience claim | `https://app.yashdeephotel.com` |

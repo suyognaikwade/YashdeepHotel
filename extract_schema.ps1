@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$MdbPath = "C:\xampp\htdocs\AntigravityProjects\YashdeepHotelMS\RSS26\dinurss.mdb",
     
-    [string]$Password = "dinu",
+    [string]$Password = "<BACKUP_MDB_PASSWORD>",
     
     [string]$OutputDir = ".\extracted_schema_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 )

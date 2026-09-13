@@ -63,7 +63,7 @@ The repository originally contained only legacy compiled binaries (`RSS26/RSS.ex
 
 | Breakthrough | Prior State | Discovered / Resolved State | Impact |
 | :--- | :--- | :--- | :--- |
-| **Database Passwords** | Unknown ("Not a valid password") | **`dinurss.mdb`**: `rss1008`<br>**`dinurss - Copy.mdb` / `OLD.mdb`**: `dinu` | Full access to 22.5 MB production database with 105 active tables. |
+| **Database Passwords** | Unknown ("Not a valid password") | **`dinurss.mdb`**: `<PRODUCTION_MDB_PASSWORD>`<br>**`dinurss - Copy.mdb` / `OLD.mdb`**: `<BACKUP_MDB_PASSWORD>` | Full access to 22.5 MB production database with 105 active tables. |
 | **Database Schema** | Locked inside Access MDB | 105 User Tables, 1,000+ Columns fully extracted into PostgreSQL DDL | Complete data migration path unblocked. |
 | **Source Logic Recovery** | Zero source code files | 191 Windows Forms, 41 Classes, 863 inline SQL queries extracted | Full operational logic and UI handlers mapped. |
 | **Reports Recovery** | 34 Crystal Reports locked | 34 Report manifests identified & schema bound | Clear path to migrate to QuestPDF code-first templates. |
@@ -175,11 +175,11 @@ At night closing (`FrmDtpDayend`), the system:
 
 | Service / Component | Credential / Configuration | Source / Location |
 | :--- | :--- | :--- |
-| **Primary Production MDB** | Password: **`rss1008`** | `RSS26/dinurss.mdb` (Jet 4.0 header XOR mask) |
-| **Historical & Backup MDBs** | Password: **`dinu`** | `RSS26/dinurss - Copy.mdb`, `RSS26/OLD.mdb` |
-| **Default Operator Login 1** | User: **`Admin`** / Password: **`333`** | Table `Login` (clientid: 1) |
-| **Default Operator Login 2** | User: **`ADMIN`** / Password: **`admin`** | Table `Login` (clientid: 1) |
-| **Date Lock Master Password**| **`333`** (or dynamic master password) | Table `dateLckMaster` |
+| **Primary Production MDB** | Password: **`<PRODUCTION_MDB_PASSWORD>`** | `RSS26/dinurss.mdb` (Jet 4.0 header XOR mask) |
+| **Historical & Backup MDBs** | Password: **`<BACKUP_MDB_PASSWORD>`** | `RSS26/dinurss - Copy.mdb`, `RSS26/OLD.mdb` |
+| **Default Operator Login 1** | User: **`Admin`** / Password: **`<DEFAULT_ADMIN_PASSWORD>`** | Table `Login` (clientid: 1) |
+| **Default Operator Login 2** | User: **`ADMIN`** / Password: **`<DEFAULT_ADMIN_PASSWORD>`** | Table `Login` (clientid: 1) |
+| **Date Lock Master Password**| **`<MASTER_LOCK_PASSWORD>`** (or dynamic master password) | Table `dateLckMaster` |
 | **UPI Payment Handle** | VPA: **`dinu`** | Table `HotelInfo` |
 | **Management Alert Mobile** | Phone: **`7741870808`** | Table `HotelInfo` |
 | **Management Alert Email** | Email: **`Fahadsayyed92@gmail.com`** | Table `HotelInfo` |

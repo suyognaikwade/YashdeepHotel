@@ -17,9 +17,9 @@ When joining this repository as an AI agent, perform the following initializatio
    - [`docs/CONFIGURATION_AND_ENV.md`](CONFIGURATION_AND_ENV.md): Configuration rules, environment variables, security, and hardware printing protocols.
 
 2. **Verify Credentials & Database Parameters**:
-   - Production Database: `RSS26/dinurss.mdb` (Password: `rss1008`)
-   - Backup Databases: `dinurss - Copy.mdb`, `OLD.mdb` (Password: `dinu`)
-   - Default Application Logins: `Admin` / `333` or `ADMIN` / `admin`
+   - Production Database: `RSS26/dinurss.mdb` (Password: `<PRODUCTION_MDB_PASSWORD>`)
+   - Backup Databases: `dinurss - Copy.mdb`, `OLD.mdb` (Password: `<BACKUP_MDB_PASSWORD>`)
+   - Default Application Logins: `Admin` / `<DEFAULT_ADMIN_PASSWORD>` or `ADMIN` / `<DEFAULT_ADMIN_PASSWORD>`
 
 3. **Verify Environment Setup**:
    - Confirm file integrity of `RSS26/` legacy binaries.
@@ -45,7 +45,7 @@ When joining this repository as an AI agent, perform the following initializatio
   - **Day End**: End-of-day audit where active daily tables move to `*_Dayend` and counters reset
 
 ### Rule 3: Database Credentials & Secrets Handling
-- **Legacy MDB Access**: Always supply password `rss1008` for `RSS26/dinurss.mdb`, and `dinu` for backup databases.
+- **Legacy MDB Access**: Always supply password `<PRODUCTION_MDB_PASSWORD>` for `RSS26/dinurss.mdb`, and `dinu` for backup databases.
 - **Modern Code**: Never commit hardcoded passwords or API keys to git. Use environment variables or `appsettings.json` placeholders.
 
 ### Rule 4: Multilingual Devanagari Script Support

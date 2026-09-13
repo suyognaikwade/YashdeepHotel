@@ -1,6 +1,6 @@
 # Comprehensive Database Schema Reference
 
-This document provides a complete reference for all **105 user tables** present in the production Microsoft Access Jet 4.0 database (`RSS26/dinurss.mdb`, Password: `rss1008`).
+This document provides a complete reference for all **105 user tables** present in the production Microsoft Access Jet 4.0 database (`RSS26/dinurss.mdb`, Password: `<PRODUCTION_MDB_PASSWORD>`).
 
 ---
 
@@ -270,4 +270,4 @@ Under Bombay Prohibition Act & Maharashtra State Excise rules, holders of FL-III
 ## 3. PostgreSQL Migration DDL
 
 The full DDL script to instantiate all 105 tables in modern PostgreSQL 16+ is available at:
-[`schema_extracted/postgres_schema.sql`](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/schema_extracted/postgres_schema.sql)
+[`schema_extracted/postgres_schema.sql`](../schema_extracted/postgres_schema.sql)
