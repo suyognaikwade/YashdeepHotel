@@ -1,1 +1,17 @@
 decompiled_src/
+
+# .NET Build and IDE files
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.userosscache
+*.sln.docstates
+
+# Database & log files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.log
