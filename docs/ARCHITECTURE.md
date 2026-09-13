@@ -1,6 +1,8 @@
 # System Architecture & Technical Specifications
 
-This document outlines the architectural blueprint of the **Yashdeep Hotel Management System**, contrasting the legacy legacy implementation (`RSS`) with the target modern cloud-synchronized SaaS platform.
+> **Note**: For the comprehensive, master architectural specification, component boundaries, Mermaid diagrams, client/server allocation matrix, and agent rules, refer to [**`SYSTEM_ARCHITECTURE.md`**](../SYSTEM_ARCHITECTURE.md).
+
+This document details the architectural blueprint of the **Yashdeep Hotel Management System**, contrasting the legacy implementation (`RSS`) with the target modern cloud-synchronized SaaS platform.
 
 ---
 
@@ -86,6 +88,8 @@ This document outlines the architectural blueprint of the **Yashdeep Hotel Manag
 
 ## 2. Target Modern Architecture (Cloud-Synchronized SaaS)
 
+For full architectural details, topology diagrams, sync flows, and agent rules, see [**`SYSTEM_ARCHITECTURE.md`**](../SYSTEM_ARCHITECTURE.md).
+
 ### 2.1 Target Solution Topology
 
 ```
@@ -96,7 +100,7 @@ This document outlines the architectural blueprint of the **Yashdeep Hotel Manag
 │  Client App: .NET 9 Blazor Hybrid / MAUI Desktop & Mobile              │
 │  ├── Touch POS UI (Table Grid, KOT Sender, Fast Menu Search)           │
 │  ├── Local Hardware Controller: ESC/POS Thermal Printing & Barcode     │
-│  ├── Local Database: SQLite (Encrypted via SQLCipher)                  │
+│  ├── Local Database: SQLite SQLCipher (AES-256 Encrypted)              │
 │  ├── Local EF Core Context: Full offline read/write capability          │
 │  └── Outbox Sync Engine (Reliable background HTTP sync client)         │
 └────────────────────────────────────────────────────────────────────────┘
@@ -122,42 +126,14 @@ This document outlines the architectural blueprint of the **Yashdeep Hotel Manag
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Offline-First Outbox Synchronization Flow
-
-```
-User Action (e.g., Create KOT or Bill)
-        │
-        ▼
-[ Local Transaction in SQLite ]
-   ├── Insert TableOrder / Bill
-   ├── Decrement Local Stock
-   └── Insert Record into OutboxQueue (Operation, PayloadJson, CreatedAt)
-        │
-        ├──► Print Receipt Immediately (Local Thermal ESC/POS)
-        │
-        ▼
-[ Background Sync Worker (Every 15-30s or WebSocket Trigger) ]
-   ├── Read Pending Outbox Messages
-   ├── POST /api/v1/sync/batch (Batch of mutations)
-   │     │
-   │     ▼
-   │  [ Cloud API Server ]
-   │     ├── Validate Tenant & Idempotency Key
-   │     ├── Apply Changes to PostgreSQL Database
-   │     ├── Resolve Conflicts (Server-authoritative timestamps)
-   │     └── Return Sync Acknowledgement & Inbound Delta Updates
-   │
-   └── Mark Outbox Messages as Sent / Apply Inbound Updates to Local SQLite
-```
-
-### 2.3 Technology Stack Comparison
+### 2.2 Technology Stack Comparison
 
 | Dimension | Legacy Stack (`RSS26`) | Target Modern Stack |
 | :--- | :--- | :--- |
 | **Framework** | .NET Framework 4.0 | .NET 9 LTS |
 | **Language** | VB.NET (Option Strict Off) | C# 13 (Nullable Enabled, Clean Architecture) |
 | **UI Framework** | Windows Forms (MDI) | Blazor Hybrid (MAUI) + Tailwind CSS |
-| **Local POS DB** | Access Jet 4.0 (`.mdb`) | SQLite + EF Core (Embedded, zero setup) |
+| **Local POS DB** | Access Jet 4.0 (`.mdb`) | SQLite SQLCipher + EF Core (Embedded, zero setup) |
 | **Cloud Server DB** | None (Single machine LAN) | PostgreSQL 16 (Multi-tenant SaaS) |
 | **Reporting** | Crystal Reports 13 | QuestPDF (Code-first, pixel-perfect, thermal 80mm/58mm/A4) |
 | **Printing** | GDI+ Windows Spooler / LPT | Direct ESC/POS USB, Network/LAN, Bluetooth & Spooler |
