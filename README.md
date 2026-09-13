@@ -18,7 +18,8 @@ If you are an AI coding agent assigned to this repository, read and follow these
 1. [**`AGENTS.md`**](AGENTS.md): Core agent rules, system constants, protected directory map, and task workflows.
 2. [**`docs/AGENTS_AND_RULES.md`**](docs/AGENTS_AND_RULES.md): Detailed AI agent operational specifications, safety rules, dangerous operations, and post-change validation.
 3. [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md): System architecture (Legacy VB.NET/Access Jet 4.0 vs. Target .NET 9 Blazor Hybrid + PostgreSQL/SQLite SaaS).
-4. [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md): Domain workflows (Dining sections, KOT routing, split taxes, dynamic UPI, multi-tier stock, FL-III Excise compliance, Day End).
+4. [**`docs/SAAS_ARCHITECTURE.md`**](docs/SAAS_ARCHITECTURE.md): Multi-Tenant SaaS Architecture (Tenants, lifecycle, isolation, PostgreSQL RLS, subscriptions & multi-location behavior).
+5. [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md): Domain workflows (Dining sections, KOT routing, split taxes, dynamic UPI, multi-tier stock, FL-III Excise compliance, Day End).
 5. [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md): Complete schema reference for all 105 user tables.
 6. [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md): Setup, actual commands, testing expectations, C# conventions, and troubleshooting.
 7. [**`docs/CONFIGURATION_AND_ENV.md`**](docs/CONFIGURATION_AND_ENV.md): Environment variables, configuration, hardware thermal printing, and security policies.
@@ -246,6 +247,7 @@ The repository contains a dedicated documentation layer under [`docs/`](docs/):
 | [**`AGENTS.md`**](AGENTS.md) | AI Agent onboarding guide, rules, constants, directory map, and task workflows. |
 | [**`docs/AGENTS_AND_RULES.md`**](docs/AGENTS_AND_RULES.md) | Comprehensive AI agent operational specifications, safety rules, dangerous commands, and post-change validation. |
 | [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md) | Deep technical breakdown of legacy WinForms vs target .NET 9 Blazor Hybrid SaaS architecture. |
+| [**`docs/SAAS_ARCHITECTURE.md`**](docs/SAAS_ARCHITECTURE.md) | Multi-tenant SaaS architecture, tenant lifecycle, PostgreSQL RLS, entitlements, and security boundary specs. |
 | [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md) | Exhaustive domain workflows (Seating sections, KOT, split taxes, UPI, liquor tiers, Excise compliance, Day End). |
 | [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md) | Schema specification for all 105 user tables. |
 | [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md) | Environment setup, CLI/PowerShell commands matrix, C# conventions, testing, DoD, and troubleshooting. |

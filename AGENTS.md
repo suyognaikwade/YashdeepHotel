@@ -8,12 +8,13 @@ Welcome, AI Agent! This document is your primary onboarding guide to the **Yashd
 
 Before beginning any task in this repository, you **must** read and understand the following documents:
 
-1. [**`README.md`**](README.md): Master project overview, architecture, business domain, and quick commands.
-2. [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md): Technical breakdown of the legacy monolith (`RSS.exe` / Jet 4.0) vs. target modern SaaS architecture (.NET 9 + Blazor + SQLite + PostgreSQL + Outbox Sync).
-3. [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md): Indian hotel & Maharashtra State Excise FL-III bar domain workflows (KOT/BOT, differential section pricing, multi-tier stock, Day End).
-4. [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md): Complete schema reference for all 105 user tables.
-5. [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md): Setup, actual terminal commands, testing, coding standards, and troubleshooting.
-6. [**`docs/CONFIGURATION_AND_ENV.md`**](docs/CONFIGURATION_AND_ENV.md): Environment variables, configuration management, security, and hardware protocols.
+1. [**`SYSTEM_ARCHITECTURE.md`**](SYSTEM_ARCHITECTURE.md): **Authoritative Master Architecture Blueprint** (.NET 9 Blazor Hybrid Edge POS + PostgreSQL Cloud API + Outbox Sync + Governance Rules).
+2. [**`README.md`**](README.md): Master project overview, architecture, business domain, and quick commands.
+3. [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md): Technical breakdown of the legacy monolith (`RSS.exe` / Jet 4.0) vs. target modern SaaS architecture.
+4. [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md): Indian hotel & Maharashtra State Excise FL-III bar domain workflows (KOT/BOT, differential section pricing, multi-tier stock, Day End).
+5. [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md): Complete schema reference for all 105 user tables.
+6. [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md): Setup, actual terminal commands, testing, coding standards, and troubleshooting.
+7. [**`docs/CONFIGURATION_AND_ENV.md`**](docs/CONFIGURATION_AND_ENV.md): Environment variables, configuration management, security, and hardware protocols.
 
 ---
 
@@ -40,6 +41,7 @@ Before beginning any task in this repository, you **must** read and understand t
 ```
 YashdeepHotelMS/
 ├── AGENTS.md                          # Quick AI agent onboarding & rules (this file)
+├── SYSTEM_ARCHITECTURE.md             # Authoritative Master Architecture Blueprint & Agent Governance Rules
 ├── README.md                          # Master project documentation & system overview
 ├── DECOMPILATION_GUIDE.md             # Reverse-engineering manual & decompilation tool guide
 ├── PROJECT_ANALYSIS.md                # Initial binary analysis & stack findings
@@ -88,10 +90,13 @@ YashdeepHotelMS/
 
 ---
 
-## 5. Repository AI Agent Rules
+## 5. Repository AI Agent Architectural Rules & Governance
 
-1. **Protect Legacy Assets**: Never modify or overwrite original legacy binary files (`RSS26/*.exe`, `RSS26/*.mdb`, `RSS26/*.rpt`).
-2. **Preserve Indian Restaurant & Bar Terminology**: Keep domain concepts intact in all models and documentation:
+All AI coding agents **must strictly comply** with [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md):
+
+1. **Obey `SYSTEM_ARCHITECTURE.md` as Master Blueprint**: No AI agent may introduce contradictory architecture, alternative framework choices, or bypass established component boundaries.
+2. **Protect Legacy Assets**: Never modify or overwrite original legacy binary files (`RSS26/*.exe`, `RSS26/*.mdb`, `RSS26/*.rpt`).
+3. **Preserve Indian Restaurant & Bar Terminology**: Keep domain concepts intact in all models and documentation:
    - **KOT**: Kitchen Order Ticket
    - **BOT**: Bar Order Ticket (Bar KOT)
    - **FL-III**: Maharashtra Foreign Liquor Hotel & Club License
@@ -99,12 +104,11 @@ YashdeepHotelMS/
    - **Godown**: Central bulk warehouse / storage room
    - **Counter**: Bar / Dispensing counter
    - **Day End**: Daily closing audit where active tables move to `*_Dayend` and counters reset
-3. **Database Access**:
-   - Always use password `rss1008` when accessing `RSS26/dinurss.mdb`.
-   - Modern target stack must use **PostgreSQL** for cloud and **SQLite** for edge POS terminals.
-4. **Target Modern Stack**:
-   - Backend / API: .NET 9 Web API + EF Core + PostgreSQL
-   - Local / Offline: SQLite + EF Core + Outbox Pattern Sync Engine
+4. **Offline-First Autonomy**: Edge POS features must operate 100% offline without blocking on cloud latency. Edge operations persist to SQLite SQLCipher and enqueue Outbox messages.
+5. **Multi-Tenant Isolation**: All persistent entities must include `Guid TenantId`, and EF Core DbContexts must enforce global query filters for multi-tenancy.
+6. **Target Modern Stack**:
+   - Backend / API: .NET 9 Web API + EF Core + PostgreSQL 16
+   - Local / Offline: SQLite SQLCipher + EF Core + Outbox Pattern Sync Engine
    - Client: Blazor Hybrid (MAUI) for Desktop & Tablets, responsive web for Admin
    - Reporting: QuestPDF (code-first, thermal printer ESC/POS friendly)
 
@@ -113,7 +117,7 @@ YashdeepHotelMS/
 ## 6. AI Agent Task Workflows
 
 ### 6.1 General Task Workflow
-1. **Understand Scope**: Read relevant domain documents (`BUSINESS_LOGIC.md`, `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`).
+1. **Understand Scope**: Read relevant domain documents (`SYSTEM_ARCHITECTURE.md`, `BUSINESS_LOGIC.md`, `DATABASE_SCHEMA.md`).
 2. **Inspect Implementation**: Inspect existing code or scripts before proposing changes.
 3. **Trace Dependencies**: Identify affected entities, queries, or UI handlers.
 4. **Implement Smallest Correct Change**: Keep changes modular, well-typed, and aligned with Clean Architecture.
