@@ -1,1 +1,15 @@
 decompiled_src/
+
+# .NET / C# Build Outputs
+[Bb]in/
+[Oo]bj/
+bin/
+obj/
+src/**/bin/
+src/**/obj/
+tests/**/bin/
+tests/**/obj/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
