@@ -116,7 +116,7 @@ This document outlines the architectural blueprint of the **Yashdeep Hotel Manag
 │  ├── ReportingService (QuestPDF Document Generation)                   │
 │  └── SyncCoordinator (Outbox processing, Conflict resolution)          │
 ├────────────────────────────────────────────────────────────────────────┤
-│  Data Layer & Tenancy                                                  │
+│  Data Layer & Tenancy (See docs/SAAS_ARCHITECTURE.md for full specs)    │
 │  ├── Multi-tenant EF Core (TenantId column filter on all tables)       │
 │  └── Primary Database: PostgreSQL 16+ (ACID, JSONB, Row-Level Security)│
 └────────────────────────────────────────────────────────────────────────┘
