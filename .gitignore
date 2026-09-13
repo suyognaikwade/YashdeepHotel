@@ -1,1 +1,8 @@
 decompiled_src/
+bin/
+obj/
+**/bin/
+**/obj/
+*.user
+*.userosscache
+*.sln.docstates
