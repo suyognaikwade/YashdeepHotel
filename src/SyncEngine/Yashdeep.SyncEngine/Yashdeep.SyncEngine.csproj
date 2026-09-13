@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Domain\Yashdeep.Domain\Yashdeep.Domain.csproj" />
+    <ProjectReference Include="..\..\Application\Yashdeep.Application\Yashdeep.Application.csproj" />
+    <ProjectReference Include="..\..\Persistence\Yashdeep.Persistence.Cloud\Yashdeep.Persistence.Cloud.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
