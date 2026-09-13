@@ -11,10 +11,24 @@
 
 ---
 
+## 🤖 AI Agent Quick Start
+
+If you are an AI coding agent assigned to this repository, read and follow these essential documents before making changes:
+
+1. [**`AGENTS.md`**](AGENTS.md): Core agent rules, system constants, protected directory map, and task workflows.
+2. [**`docs/AGENTS_AND_RULES.md`**](docs/AGENTS_AND_RULES.md): Detailed AI agent operational specifications, safety rules, dangerous operations, and post-change validation.
+3. [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md): System architecture (Legacy VB.NET/Access Jet 4.0 vs. Target .NET 9 Blazor Hybrid + PostgreSQL/SQLite SaaS).
+4. [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md): Domain workflows (Dining sections, KOT routing, split taxes, dynamic UPI, multi-tier stock, FL-III Excise compliance, Day End).
+5. [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md): Complete schema reference for all 105 user tables.
+6. [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md): Setup, actual commands, testing expectations, C# conventions, and troubleshooting.
+7. [**`docs/CONFIGURATION_AND_ENV.md`**](docs/CONFIGURATION_AND_ENV.md): Environment variables, configuration, hardware thermal printing, and security policies.
+
+---
+
 ## 📖 Table of Contents
 
 1. [Executive Summary & Project Overview](#1-executive-summary--project-overview)
-2. [Major Breakthroughs & Reverse Engineering Findings](#2-major-breakthroughs--reverse-engineering-findings)
+2. [Major Reverse Engineering Findings](#2-major-reverse-engineering-findings)
 3. [Business Domain & Operating Profile](#3-business-domain--operating-profile)
 4. [System Architecture: Legacy vs. Target Modernization](#4-system-architecture-legacy-vs-target-modernization)
 5. [Database Schema & Inventory (105 Tables)](#5-database-schema--inventory-105-tables)
@@ -28,8 +42,7 @@
 7. [System Credentials & Configurations](#7-system-credentials--configurations)
 8. [Root Cause Analysis of Production Failure Modes](#8-root-cause-analysis-of-production-failure-modes)
 9. [Modernization Roadmap (.NET 9 + Blazor + SQLite + PostgreSQL)](#9-modernization-roadmap-net-9--blazor--sqlite--postgresql)
-10. [AI Agent Guidelines, Tasks, Commands & Rules](#10-ai-agent-guidelines-tasks-commands--rules)
-11. [Repository File Map](#11-repository-file-map)
+10. [Documentation Index](#10-documentation-index)
 
 ---
 
@@ -46,7 +59,7 @@ The repository originally contained only legacy compiled binaries (`RSS26/RSS.ex
 
 ---
 
-## 2. Major Breakthroughs & Reverse Engineering Findings
+## 2. Major Reverse Engineering Findings
 
 | Breakthrough | Prior State | Discovered / Resolved State | Impact |
 | :--- | :--- | :--- | :--- |
@@ -90,7 +103,7 @@ Legacy Architecture (RSS26)                 Modern Target Architecture (SaaS)
 └──────────────────────────────────────┘     └──────────────────────────────────────┘
 ```
 
-For complete technical specifications, see [**`docs/ARCHITECTURE.md`**](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/docs/ARCHITECTURE.md).
+For complete technical specifications, see [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md).
 
 ---
 
@@ -110,15 +123,15 @@ The production database `dinurss.mdb` contains **105 user tables** categorized i
 └── 9. Configuration & Security (20 tables): HotelInfo, Setup, Login, dateLckMaster, SoftwareName...
 ```
 
-- **Full Schema Documentation**: [**`docs/DATABASE_SCHEMA.md`**](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/docs/DATABASE_SCHEMA.md)
-- **Ready-to-run PostgreSQL DDL**: [`schema_extracted/postgres_schema.sql`](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/schema_extracted/postgres_schema.sql)
-- **Row & Column Inventory CSV**: [`schema_extracted/tables_inventory.csv`](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/schema_extracted/tables_inventory.csv)
+- **Full Schema Documentation**: [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md)
+- **Ready-to-run PostgreSQL DDL**: [`schema_extracted/postgres_schema.sql`](schema_extracted/postgres_schema.sql)
+- **Row & Column Inventory CSV**: [`schema_extracted/tables_inventory.csv`](schema_extracted/tables_inventory.csv)
 
 ---
 
 ## 6. Core Operational Workflows
 
-Detailed workflow descriptions are provided in [**`docs/BUSINESS_LOGIC.md`**](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/docs/BUSINESS_LOGIC.md). Key highlights include:
+Detailed workflow descriptions are provided in [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md). Key highlights include:
 
 ### 6.1 Section Seating & Differential Pricing
 Dining tables are grouped into 6 sections (`Family`, `Ac`, `Hall`, `Restaurant`, `Garden`, `Parcel`). The menu catalog (`item`) automatically applies section-specific rate columns:
@@ -197,26 +210,26 @@ From the 44 historical error log files (2022–2026), the top production failure
 ## 9. Modernization Roadmap (.NET 9 + Blazor + SQLite + PostgreSQL)
 
 ```
-Phase 1: Database Ingestion & Domain Modeling (Weeks 1-2)
+Phase 1: Database Ingestion & Domain Modeling
 ├── Set up PostgreSQL 16 schema using schema_extracted/postgres_schema.sql
 ├── Implement Yashdeep.Domain entities (Table, KOT, Bill, StockItem, ExciseRegister)
 └── Build Access-to-PostgreSQL data migration pipeline
 
-Phase 2: Offline-First POS Engine (Weeks 3-5)
+Phase 2: Offline-First POS Engine
 ├── Local SQLite DbContext + EF Core
 ├── Outbox sync queue & background sync worker
 └── ESC/POS thermal printer driver (USB / LAN / Bluetooth)
 
-Phase 3: Touch POS & KOT Interface (Weeks 6-8)
+Phase 3: Touch POS & KOT Interface
 ├── Blazor Hybrid (MAUI) touch-screen user interface
 ├── Table layout visualizer with color-coded states (Vacant, KOT Active, Billed)
 └── Marathi bilingual KOT slip generation via QuestPDF
 
-Phase 4: Multi-Tier Stock & State Excise Module (Weeks 9-11)
+Phase 4: Multi-Tier Stock & State Excise Module
 ├── Godown → Counter → Bottle Open → Peg dispensing calculation engine
 └── Maharashtra FL-III daily bulk litre & monthly statement reports
 
-Phase 5: Cloud SaaS Hardening & Multi-Tenancy (Weeks 12-14)
+Phase 5: Cloud SaaS Hardening & Multi-Tenancy
 ├── Multi-tenant tenant isolation (`TenantId` row-level filter)
 ├── ASP.NET Core Identity with JWT & RBAC
 └── Centralized analytics dashboard for multi-branch hotel owners
@@ -224,71 +237,22 @@ Phase 5: Cloud SaaS Hardening & Multi-Tenancy (Weeks 12-14)
 
 ---
 
-## 10. AI Agent Guidelines, Tasks, Commands & Rules
+## 10. Documentation Index
 
-All AI agents working on this project must adhere to the rules defined in [**`docs/AGENTS_AND_RULES.md`**](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/docs/AGENTS_AND_RULES.md) and [**`.agent/rules/hotel_ms_rules.md`**](file:///c:/xampp/htdocs/AntigravityProjects/YashdeepHotelMS/.agent/rules/hotel_ms_rules.md).
+The repository contains a dedicated documentation layer under [`docs/`](docs/):
 
-### Quick Agent Commands:
-
-```powershell
-# Verify Access MDB connectivity with decrypted password
-powershell -Command "$c = New-Object System.Data.OleDb.OleDbConnection('Provider=Microsoft.ACE.OLEDB.12.0;Data Source=RSS26\dinurss.mdb;Jet OLEDB:Database Password=rss1008;'); $c.Open(); Write-Host 'SUCCESS!'; $c.Close()"
-
-# Refresh extracted schema & table inventory
-python scratch\run_extract_schema.py
-
-# Dump configuration tables
-python scratch\dump_hotel_configs.py
-
-# Search decompiled queries & methods
-# SQL queries: scratch\extracted_sql_queries.txt
-# Types & Methods: scratch\key_forms_dump.txt & scratch\core_classes_dump.txt
-```
+| Document | Purpose |
+| :--- | :--- |
+| [**`AGENTS.md`**](AGENTS.md) | AI Agent onboarding guide, rules, constants, directory map, and task workflows. |
+| [**`docs/AGENTS_AND_RULES.md`**](docs/AGENTS_AND_RULES.md) | Comprehensive AI agent operational specifications, safety rules, dangerous commands, and post-change validation. |
+| [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md) | Deep technical breakdown of legacy WinForms vs target .NET 9 Blazor Hybrid SaaS architecture. |
+| [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md) | Exhaustive domain workflows (Seating sections, KOT, split taxes, UPI, liquor tiers, Excise compliance, Day End). |
+| [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md) | Schema specification for all 105 user tables. |
+| [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md) | Environment setup, CLI/PowerShell commands matrix, C# conventions, testing, DoD, and troubleshooting. |
+| [**`docs/CONFIGURATION_AND_ENV.md`**](docs/CONFIGURATION_AND_ENV.md) | Environment variables matrix, configuration management, ESC/POS hardware thermal printing, and security policies. |
+| [**`DECOMPILATION_GUIDE.md`**](DECOMPILATION_GUIDE.md) | Reverse-engineering manual & decompilation tool guide. |
+| [**`PROJECT_ANALYSIS.md`**](PROJECT_ANALYSIS.md) | Initial binary static analysis findings. |
 
 ---
 
-## 11. Repository File Map
-
-```
-YashdeepHotelMS/
-├── README.md                          # Master project documentation (this file)
-├── AGENTS.md                          # Quick AI agent onboarding guide
-├── DECOMPILATION_GUIDE.md             # Reverse-engineering manual & tools
-├── PROJECT_ANALYSIS.md                # Initial binary analysis
-├── extract_schema.ps1                 # Original PowerShell extraction script
-├── extract_schema.sh                  # Original Linux mdbtools extraction script
-├── .agent/
-│   └── rules/
-│       └── hotel_ms_rules.md          # Workspace rules for AI assistants
-├── docs/
-│   ├── ARCHITECTURE.md                # In-depth system architecture & sync design
-│   ├── DATABASE_SCHEMA.md             # Complete schema for all 105 tables
-│   ├── BUSINESS_LOGIC.md              # Domain workflows: Table, KOT, Bill, Stock, Excise
-│   └── AGENTS_AND_RULES.md            # AI agent operations, commands & guidelines
-├── schema_extracted/
-│   ├── DATABASE_SCHEMA.md             # Table-by-table schema summary
-│   ├── postgres_schema.sql            # PostgreSQL DDL for all 105 tables
-│   └── tables_inventory.csv           # Table inventory with row & column counts
-├── scratch/                           # Diagnostic, reflection & recovery scripts
-│   ├── run_extract_schema.py          # Complete schema extraction script
-│   ├── dump_hotel_configs.py          # Configuration dumper script
-│   ├── verify_pw.py                   # Jet 4.0 password recovery script
-│   ├── extract_sql.py                 # Query extraction script (863 queries)
-│   ├── inspect_core.py                # Reflection inspector for core classes
-│   └── inspect_forms.py               # Reflection inspector for WinForms
-└── RSS26/                             # Legacy production deployment
-    ├── RSS.exe                        # Main compiled application (.NET 4.0)
-    ├── RSS_LONGLIFE.exe               # Long-life billing variant
-    ├── RSSUTILITYNEW.exe              # Utility executable
-    ├── dinurss.mdb                    # Production database (PW: rss1008)
-    ├── dinurss - Copy.mdb             # Backup database (PW: dinu)
-    ├── OLD.mdb                        # Historical database (PW: dinu)
-    ├── nwitem5.rpt / nwitem5.vb       # Item sales Crystal Report & wrapper
-    ├── Log/                           # 44 monthly runtime error logs (2022-2026)
-    └── PDF/                           # Sample report outputs
-```
-
----
-
-*Documentation compiled and verified on September 13, 2026.*  
-*Maintained for Hotel Yashdeep and Modernization Engineering Teams.*
+*Documentation compiled and verified for Hotel Yashdeep and Modernization Engineering Teams.*
