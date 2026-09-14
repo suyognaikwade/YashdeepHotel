@@ -1,1 +1,9 @@
 decompiled_src/
+bin/
+obj/
+**/bin/
+**/obj/
+.vs/
+*.user
+.idea/
+.dotnet/
