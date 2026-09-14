@@ -2,39 +2,94 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Yashdeep.Application.Common.Interfaces;
+using Yashdeep.Application.Persistence;
 
 namespace Yashdeep.Persistence.Local;
 
-/// <summary>
-/// Unit of Work implementation wrapping LocalDbContext for explicit local SQLite transactions.
-/// </summary>
-public class LocalUnitOfWork : ILocalUnitOfWork
+public class LocalTransaction : ILocalTransaction
 {
-    private readonly LocalDbContext _dbContext;
+    private readonly IDbContextTransaction _efTransaction;
+
+    public LocalTransaction(IDbContextTransaction efTransaction)
+    {
+        _efTransaction = efTransaction ?? throw new ArgumentNullException(nameof(efTransaction));
+    }
+
+    public async Task CommitAsync(CancellationToken cancellationToken = default)
+    {
+        await _efTransaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task RollbackAsync(CancellationToken cancellationToken = default)
+    {
+        await _efTransaction.RollbackAsync(cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        _efTransaction.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _efTransaction.DisposeAsync();
+    }
+}
+
+/// <summary>
+/// Unit of Work implementation supporting LocalDbContext and LocalPosDbContext for explicit local SQLite transactions.
+/// </summary>
+public class LocalUnitOfWork : Yashdeep.Application.Common.Interfaces.ILocalUnitOfWork, Yashdeep.Application.Persistence.ILocalUnitOfWork
+{
+    private readonly DbContext _dbContext;
+    private readonly LocalDbContext? _localDbContext;
     private readonly Dictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _currentTransaction;
     private bool _disposed;
 
     public LocalUnitOfWork(LocalDbContext dbContext)
     {
+        _localDbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _dbContext = dbContext;
+    }
+
+    public LocalUnitOfWork(LocalPosDbContext dbContext)
+    {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _localDbContext = null;
     }
 
     public bool HasActiveTransaction => _currentTransaction != null;
 
     public ILocalRepository<TEntity> GetRepository<TEntity>() where TEntity : class
     {
+        if (_localDbContext == null)
+        {
+            throw new InvalidOperationException("GetRepository requires LocalDbContext.");
+        }
+
         var type = typeof(TEntity);
         if (!_repositories.TryGetValue(type, out var repository))
         {
-            repository = new LocalRepository<TEntity>(_dbContext);
+            repository = new LocalRepository<TEntity>(_localDbContext);
             _repositories[type] = repository;
         }
 
         return (ILocalRepository<TEntity>)repository;
     }
 
-    public async Task BeginTransactionAsync(IsolationLevel isolationLevel = IsolationLevel.ReadCommitted, CancellationToken cancellationToken = default)
+    public async Task<ILocalTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        if (_currentTransaction != null)
+        {
+            throw new InvalidOperationException("A transaction is already active on this Unit of Work context.");
+        }
+
+        _currentTransaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        return new LocalTransaction(_currentTransaction);
+    }
+
+    public async Task BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
     {
         if (_currentTransaction != null)
         {
@@ -42,6 +97,11 @@ public class LocalUnitOfWork : ILocalUnitOfWork
         }
 
         _currentTransaction = await _dbContext.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
+    }
+
+    async Task Yashdeep.Application.Common.Interfaces.ILocalUnitOfWork.BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
+    {
+        await BeginTransactionAsync(isolationLevel, cancellationToken);
     }
 
     public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)
