@@ -33,5 +33,6 @@
     <Project Path="tests/Yashdeep.Tests.Unit/Yashdeep.Tests.Unit.csproj" />
     <Project Path="tests/Yashdeep.Shared.Tests/Yashdeep.Shared.Tests.csproj" />
     <Project Path="tests/Yashdeep.SyncEngine.Tests/Yashdeep.SyncEngine.Tests.csproj" />
+    <Project Path="tests/Yashdeep.Connectivity.Tests/Yashdeep.Connectivity.Tests.csproj" />
   </Folder>
 </Solution>
