@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Domain.Entities.Sync;
 
@@ -36,7 +37,8 @@ public class OutboxMessage
         Guid branchId,
         Guid deviceId,
         long sequenceNumber,
-        string payloadJson)
+        string payloadJson,
+        IDateTimeProvider? timeProvider = null)
     {
         EventId = eventId == Guid.Empty ? Guid.NewGuid() : eventId;
         EventType = eventType ?? throw new ArgumentNullException(nameof(eventType));
@@ -46,7 +48,7 @@ public class OutboxMessage
         BranchId = branchId;
         DeviceId = deviceId;
         SequenceNumber = sequenceNumber;
-        CreatedUtc = DateTime.UtcNow;
+        CreatedUtc = timeProvider?.UtcNow ?? DateTime.UtcNow;
         PayloadJson = payloadJson ?? "{}";
         PayloadHash = ComputeSha256Hash(PayloadJson);
         Status = OutboxMessageStatus.Pending;

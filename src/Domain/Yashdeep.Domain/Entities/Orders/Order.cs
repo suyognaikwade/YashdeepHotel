@@ -1,4 +1,5 @@
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Domain.Entities.Orders;
 
@@ -43,8 +44,14 @@ public class Order
         string orderNumber,
         DateOnly businessDate,
         Guid captainUserId,
-        string waiterName)
+        string waiterName,
+        IDateTimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        if (tenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        if (branchId == Guid.Empty) throw new ArgumentException("BranchId is required.", nameof(branchId));
+
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         TenantId = tenantId;
         BranchId = branchId;
@@ -53,11 +60,11 @@ public class Order
         Section = section;
         OrderType = orderType;
         Status = OrderStatus.Open;
-        OrderNumber = orderNumber ?? throw new ArgumentNullException(nameof(orderNumber));
+        OrderNumber = string.IsNullOrWhiteSpace(orderNumber) ? throw new ArgumentException("Order number cannot be empty.", nameof(orderNumber)) : orderNumber;
         BusinessDate = businessDate;
         CaptainUserId = captainUserId;
         WaiterName = waiterName ?? string.Empty;
-        CreatedAtUtc = DateTime.UtcNow;
+        CreatedAtUtc = timeProvider.UtcNow;
     }
 
     public OrderItem AddItem(
@@ -73,6 +80,9 @@ public class Order
         if (Status != OrderStatus.Open)
             throw new InvalidOperationException($"Cannot add items to order in status {Status}.");
 
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
+
         var existingItem = _items.FirstOrDefault(i => i.MenuItemId == menuItemId && i.UnitPrice == unitPrice && !i.IsSentToKot);
         if (existingItem != null)
         {
@@ -85,12 +95,20 @@ public class Order
         return item;
     }
 
-    public KotRecord GenerateKot(KotTicketType ticketType, string kotNumber)
+    public KotRecord GenerateKot(KotTicketType ticketType, string kotNumber, IDateTimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
         if (Status != OrderStatus.Open)
             throw new InvalidOperationException($"Cannot generate KOT for order in status {Status}.");
 
-        DepartmentType targetDept = ticketType == KotTicketType.KotKitchen ? DepartmentType.Kitchen : DepartmentType.Bar;
+        DepartmentType targetDept = ticketType switch
+        {
+            KotTicketType.KotKitchen => DepartmentType.Kitchen,
+            KotTicketType.BotBar => DepartmentType.Bar,
+            _ => throw new ArgumentOutOfRangeException(nameof(ticketType), "Unsupported ticket type.")
+        };
+
         var pendingItems = _items.Where(i => !i.IsSentToKot && i.Department == targetDept).ToList();
 
         if (pendingItems.Count == 0)
@@ -114,7 +132,8 @@ public class Order
             ticketType,
             TableNumber,
             WaiterName,
-            lineItems
+            lineItems,
+            timeProvider
         );
 
         foreach (var item in pendingItems)
@@ -146,15 +165,17 @@ public class Order
     public void MarkBilled()
     {
         if (Status != OrderStatus.Open)
-            throw new InvalidOperationException($"Cannot mark order billed when status is {Status}.");
+            throw new InvalidOperationException($"Cannot mark order billed when status is {Status}. Order is already billed or closed.");
         Status = OrderStatus.Billed;
     }
 
-    public void MarkCompleted()
+    public void MarkCompleted(IDateTimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
         if (Status != OrderStatus.Billed && Status != OrderStatus.Open)
             throw new InvalidOperationException($"Cannot complete order in status {Status}.");
         Status = OrderStatus.Completed;
-        ClosedAtUtc = DateTime.UtcNow;
+        ClosedAtUtc = timeProvider.UtcNow;
     }
 }
