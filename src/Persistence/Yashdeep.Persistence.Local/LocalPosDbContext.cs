@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Yashdeep.Application.Common.Interfaces;
 using Yashdeep.Domain.Orders;
 using Yashdeep.Domain.Outbox;
 
@@ -6,9 +7,16 @@ namespace Yashdeep.Persistence.Local;
 
 public class LocalPosDbContext : DbContext
 {
-    public LocalPosDbContext(DbContextOptions<LocalPosDbContext> options)
+    private readonly Guid? _currentTenantId;
+    private readonly ITenantContext? _tenantContext;
+
+    public Guid CurrentTenantId => _tenantContext?.TenantId ?? _currentTenantId ?? Guid.Empty;
+
+    public LocalPosDbContext(DbContextOptions<LocalPosDbContext> options, Guid? currentTenantId = null, ITenantContext? tenantContext = null)
         : base(options)
     {
+        _currentTenantId = currentTenantId;
+        _tenantContext = tenantContext;
     }
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -93,6 +101,8 @@ public class LocalPosDbContext : DbContext
             // Status and tenant querying indexes
             builder.HasIndex(e => new { e.TenantId, e.DeviceId, e.Status });
             builder.HasIndex(e => new { e.Status, e.CreatedUtc });
+
+            builder.HasQueryFilter(e => CurrentTenantId == Guid.Empty || e.TenantId == CurrentTenantId);
         });
     }
 }
