@@ -9,7 +9,10 @@ using Yashdeep.Domain.ValueObjects;
 
 namespace Yashdeep.Infrastructure.Persistence;
 
-public class LocalPosMemoryDbContext
+/// <summary>
+/// Test-only in-memory DbContext for POS unit tests.
+/// </summary>
+public class TestPosMemoryDbContext
 {
     public ConcurrentDictionary<Guid, Order> Orders { get; } = new();
     public ConcurrentDictionary<Guid, Bill> Bills { get; } = new();
@@ -25,17 +28,21 @@ public class LocalPosMemoryDbContext
     }
 }
 
-public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRepository, IStockRepository, IAuditRepository, IOutboxRepository
+/// <summary>
+/// Test-only in-memory Unit of Work implementation for lightweight POS tests.
+/// Production persistence uses SqlitePosUnitOfWork in Yashdeep.Persistence.Local.
+/// </summary>
+public class TestPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRepository, IStockRepository, IAuditRepository, IPosOutboxRepository
 {
-    private readonly LocalPosMemoryDbContext _dbContext;
+    private readonly TestPosMemoryDbContext _dbContext;
 
     public IOrderRepository Orders => this;
     public IBillRepository Bills => this;
     public IStockRepository Stock => this;
     public IAuditRepository Audits => this;
-    public IOutboxRepository Outbox => this;
+    public IPosOutboxRepository Outbox => this;
 
-    public LocalPosUnitOfWork(LocalPosMemoryDbContext dbContext)
+    public TestPosUnitOfWork(TestPosMemoryDbContext dbContext)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
@@ -119,13 +126,13 @@ public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRe
     }
 
     // --- Outbox Repository ---
-    Task IOutboxRepository.AddMessageAsync(OutboxMessage message, CancellationToken cancellationToken)
+    Task IPosOutboxRepository.AddMessageAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
         _dbContext.OutboxMessages[message.EventId] = message;
         return Task.CompletedTask;
     }
 
-    Task<IReadOnlyList<OutboxMessage>> IOutboxRepository.GetPendingMessagesAsync(Guid tenantId, int batchSize, CancellationToken cancellationToken)
+    Task<IReadOnlyList<OutboxMessage>> IPosOutboxRepository.GetPendingMessagesAsync(Guid tenantId, int batchSize, CancellationToken cancellationToken)
     {
         var list = _dbContext.OutboxMessages.Values
             .Where(m => m.TenantId == tenantId && m.Status == OutboxMessageStatus.Pending)
@@ -134,7 +141,7 @@ public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRe
         return Task.FromResult<IReadOnlyList<OutboxMessage>>(list);
     }
 
-    Task IOutboxRepository.MarkAsUploadedAsync(IEnumerable<Guid> eventIds, CancellationToken cancellationToken)
+    Task IPosOutboxRepository.MarkAsUploadedAsync(IEnumerable<Guid> eventIds, CancellationToken cancellationToken)
     {
         foreach (var eventId in eventIds)
         {
@@ -149,7 +156,6 @@ public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRe
     // --- Transaction Commit ---
     public Task<int> CommitTransactionAsync(CancellationToken cancellationToken = default)
     {
-        // All local writes to memory DbContext are atomic
         return Task.FromResult(1);
     }
 }

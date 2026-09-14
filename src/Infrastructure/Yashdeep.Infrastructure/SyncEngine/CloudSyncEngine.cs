@@ -48,12 +48,12 @@ public class CloudInboxProcessor
 
 public class CloudSyncEngine : ICloudSyncEngine
 {
-    private readonly IOutboxRepository _outboxRepository;
+    private readonly IPosOutboxRepository _outboxRepository;
     private readonly CloudInboxProcessor _inboxProcessor;
     private bool _isOnline = true;
 
     public CloudSyncEngine(
-        IOutboxRepository outboxRepository,
+        IPosOutboxRepository outboxRepository,
         CloudInboxProcessor inboxProcessor)
     {
         _outboxRepository = outboxRepository ?? throw new ArgumentNullException(nameof(outboxRepository));

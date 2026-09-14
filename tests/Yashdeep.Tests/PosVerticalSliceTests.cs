@@ -1,22 +1,28 @@
 namespace Yashdeep.Tests;
 
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Yashdeep.Application.Pos.DTOs;
 using Yashdeep.Application.Pos.UI;
 using Yashdeep.Application.Pos.Workflows;
+using Yashdeep.Domain.Entities.Audit;
 using Yashdeep.Domain.Entities.Billing;
+using Yashdeep.Domain.Entities.Inventory;
 using Yashdeep.Domain.Entities.Orders;
 using Yashdeep.Domain.Entities.Sync;
 using Yashdeep.Domain.ValueObjects;
-using Yashdeep.Infrastructure.Persistence;
 using Yashdeep.Infrastructure.Printing;
 using Yashdeep.Infrastructure.SyncEngine;
+using Yashdeep.Persistence.Local;
 using Xunit;
 
-public class PosVerticalSliceTests
+public class PosVerticalSliceTests : IDisposable
 {
-    private readonly LocalPosMemoryDbContext _dbContext;
-    private readonly LocalPosUnitOfWork _unitOfWork;
+    private readonly SqliteConnection _sqliteConnection;
+    private readonly DbContextOptions<LocalPosDbContext> _dbContextOptions;
+    private readonly LocalPosDbContext _dbContext;
+    private readonly SqlitePosUnitOfWork _unitOfWork;
     private readonly TestPrinterService _printerService;
     private readonly CloudInboxProcessor _inboxProcessor;
     private readonly CloudSyncEngine _syncEngine;
@@ -30,8 +36,18 @@ public class PosVerticalSliceTests
 
     public PosVerticalSliceTests()
     {
-        _dbContext = new LocalPosMemoryDbContext();
-        _unitOfWork = new LocalPosUnitOfWork(_dbContext);
+        // Open an in-memory SQLite connection so the database stays alive across DbContext instances during tests
+        _sqliteConnection = new SqliteConnection("Data Source=:memory:");
+        _sqliteConnection.Open();
+
+        _dbContextOptions = new DbContextOptionsBuilder<LocalPosDbContext>()
+            .UseSqlite(_sqliteConnection)
+            .Options;
+
+        _dbContext = new LocalPosDbContext(_dbContextOptions);
+        _dbContext.Database.EnsureCreated();
+
+        _unitOfWork = new SqlitePosUnitOfWork(_dbContext);
         _printerService = new TestPrinterService();
         _inboxProcessor = new CloudInboxProcessor();
         _syncEngine = new CloudSyncEngine(_unitOfWork.Outbox, _inboxProcessor);
@@ -51,6 +67,13 @@ public class PosVerticalSliceTests
             CashierUserId = "CASHIER_01",
             DiscountPercentage = 10m // 10% discount test
         };
+    }
+
+    public void Dispose()
+    {
+        _unitOfWork.Dispose();
+        _dbContext.Dispose();
+        _sqliteConnection.Dispose();
     }
 
     [Fact]
@@ -272,5 +295,141 @@ public class PosVerticalSliceTests
         Assert.Null(billForOtherTenant);
         Assert.Empty(movementsForOtherTenant);
         Assert.Empty(auditsForOtherTenant);
+    }
+
+    [Fact]
+    public async Task Persistence_SurvivesContextDisposalAndApplicationRestartSimulation()
+    {
+        // Arrange & Act - Execute POS Workflow Offline
+        _syncEngine.SetNetworkAvailable(false);
+        _uiController.AddItemToCart(Guid.NewGuid(), "102", "Veg Biryani", "वेज् बिरयानी", DepartmentType.Kitchen, 1, 280m);
+        var payments = new List<ProcessPaymentRequest> { new(PaymentMethod.Cash, 280m, "REF_RESTART") };
+        var result = await _uiController.ProcessCheckoutAndSettleAsync(payments);
+
+        // Simulate Application Restart by disposing current DbContext and creating new fresh instances
+        using (var freshDbContext = new LocalPosDbContext(_dbContextOptions))
+        using (var freshUnitOfWork = new SqlitePosUnitOfWork(freshDbContext))
+        {
+            // Act - Fetch persisted entities from fresh DbContext
+            var order = await freshUnitOfWork.Orders.GetByIdAsync(result.OrderId, _tenantId);
+            var bill = await freshUnitOfWork.Bills.GetByIdAsync(result.BillId, _tenantId);
+            var movements = await freshUnitOfWork.Stock.GetMovementsByReferenceAsync(result.BillId, _tenantId);
+            var audits = await freshUnitOfWork.Audits.GetEventsByReferenceAsync(result.BillId, _tenantId);
+            var outboxMsgs = await freshUnitOfWork.Outbox.GetPendingMessagesAsync(_tenantId);
+
+            // Assert - All entities survive disposal and restart simulation
+            Assert.NotNull(order);
+            Assert.Equal("T-12", order.TableNumber);
+            Assert.Equal(OrderStatus.Completed, order.Status);
+
+            Assert.NotNull(bill);
+            Assert.Equal(result.InvoiceNumber, bill.InvoiceNumber);
+            Assert.Equal(PaymentStatus.Paid, bill.PaymentStatus);
+            Assert.Equal(result.GrandTotal.Amount, bill.GrandTotal.Amount);
+
+            Assert.Single(movements);
+            Assert.Equal("Veg Biryani", movements[0].ItemName);
+
+            Assert.Single(audits);
+            Assert.Equal("POS_WORKFLOW_COMPLETED", audits[0].EventType);
+
+            Assert.Single(outboxMsgs);
+            Assert.Equal(result.OutboxEventIds[0], outboxMsgs[0].EventId);
+        }
+    }
+
+    [Fact]
+    public async Task Persistence_DatabaseContainsAllTransactionRecordsAfterSuccessfulCompletion()
+    {
+        // Arrange & Act
+        _uiController.AddItemToCart(Guid.NewGuid(), "103", "Dal Tadka", "दाल तडका", DepartmentType.Kitchen, 2, 180m);
+        _uiController.AddItemToCart(Guid.NewGuid(), "502", "Whisky 60ml", "व्हिस्की", DepartmentType.Bar, 1, 300m, 60);
+
+        var payments = new List<ProcessPaymentRequest> { new(PaymentMethod.Card, 660m, "CARD_TXN_88") };
+        var result = await _uiController.ProcessCheckoutAndSettleAsync(payments);
+
+        // Query database directly via DbContext
+        var dbOrder = await _dbContext.Orders.Include(o => o.Items).Include(o => o.Kots).FirstOrDefaultAsync(o => o.Id == result.OrderId);
+        var dbBill = await _dbContext.Bills.Include(b => b.Payments).Include(b => b.TaxLines).FirstOrDefaultAsync(b => b.Id == result.BillId);
+        var dbMovements = await _dbContext.StockMovements.Where(s => s.ReferenceTransactionId == result.BillId).ToListAsync();
+        var dbAudits = await _dbContext.AuditEvents.Where(a => a.ReferenceId == result.BillId).ToListAsync();
+        var dbOutbox = await _dbContext.OutboxMessages.Where(o => o.EventId == result.OutboxEventIds[0]).FirstOrDefaultAsync();
+
+        // Assert - Complete transaction records present
+        Assert.NotNull(dbOrder);
+        Assert.Equal(2, dbOrder.Items.Count);
+        Assert.Equal(2, dbOrder.Kots.Count); // Kitchen KOT + Bar BOT
+
+        Assert.NotNull(dbBill);
+        Assert.Single(dbBill.Payments);
+        Assert.NotEmpty(dbBill.TaxLines);
+
+        Assert.Equal(2, dbMovements.Count);
+        Assert.Single(dbAudits);
+        Assert.NotNull(dbOutbox);
+        Assert.Equal("Bill", dbOutbox.AggregateType);
+    }
+
+    [Fact]
+    public async Task Persistence_FailedTransactionsRollBackAllRelatedRecords()
+    {
+        // Arrange
+        Guid testOrderId = Guid.NewGuid();
+        Guid testBillId = Guid.NewGuid();
+
+        // Act & Assert - Execute work inside transaction and throw exception before committing
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await _unitOfWork.BeginTransactionAsync();
+
+            var order = new Order(
+                testOrderId, _tenantId, _branchId, _locationId,
+                "T-99", SectionTier.Family, OrderType.DineIn, "ORD-ERR",
+                DateOnly.FromDateTime(DateTime.UtcNow), Guid.NewGuid(), "Captain Failed"
+            );
+            await _unitOfWork.Orders.AddAsync(order);
+
+            var bill = new Bill(
+                testBillId, _tenantId, _branchId, _locationId, testOrderId,
+                DateOnly.FromDateTime(DateTime.UtcNow), "INV-FAIL-001", 99,
+                "T-99", "Captain Failed", new Money(500m), new Money(0m)
+            );
+            await _unitOfWork.Bills.AddAsync(bill);
+
+            var movement = new StockMovement(
+                Guid.NewGuid(), _tenantId, _branchId, Guid.NewGuid(),
+                "101", "Failed Item", StockMovementType.SaleDeduction, 1, referenceTransactionId: testBillId
+            );
+            await _unitOfWork.Stock.AddMovementAsync(movement);
+
+            var audit = new AuditEvent(
+                Guid.NewGuid(), _tenantId, _branchId, "FAIL_TEST", "TEST",
+                null, "System", testBillId, "{}"
+            );
+            await _unitOfWork.Audits.AddEventAsync(audit);
+
+            var outbox = new OutboxMessage(
+                Guid.NewGuid(), "FailEvent", "Bill", testBillId,
+                _tenantId, _branchId, _deviceId, 1, "{}"
+            );
+            await _unitOfWork.Outbox.AddMessageAsync(outbox);
+
+            // Simulate failure before commit
+            throw new InvalidOperationException("Simulated mid-transaction exception!");
+        });
+
+        // Query database directly to confirm rollback
+        using (var verifyDbContext = new LocalPosDbContext(_dbContextOptions))
+        {
+            var rolledBackOrder = await verifyDbContext.Orders.FirstOrDefaultAsync(o => o.Id == testOrderId);
+            var rolledBackBill = await verifyDbContext.Bills.FirstOrDefaultAsync(b => b.Id == testBillId);
+            var rolledBackMovements = await verifyDbContext.StockMovements.Where(s => s.ReferenceTransactionId == testBillId).ToListAsync();
+            var rolledBackAudits = await verifyDbContext.AuditEvents.Where(a => a.ReferenceId == testBillId).ToListAsync();
+
+            Assert.Null(rolledBackOrder);
+            Assert.Null(rolledBackBill);
+            Assert.Empty(rolledBackMovements);
+            Assert.Empty(rolledBackAudits);
+        }
     }
 }
