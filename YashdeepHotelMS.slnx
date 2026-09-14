@@ -31,5 +31,6 @@
     <Project Path="tests/Yashdeep.Tests.DeviceRegistration/Yashdeep.Tests.DeviceRegistration.csproj" />
     <Project Path="tests/Yashdeep.Persistence.Local.Tests/Yashdeep.Persistence.Local.Tests.csproj" />
     <Project Path="tests/Yashdeep.Tests.Unit/Yashdeep.Tests.Unit.csproj" />
+    <Project Path="tests/Yashdeep.Shared.Tests/Yashdeep.Shared.Tests.csproj" />
   </Folder>
 </Solution>
