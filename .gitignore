@@ -1,1 +1,10 @@
-decompiled_src/
+# .gitignore
+bin/
+obj/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+global.json
