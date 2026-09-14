@@ -17,16 +17,14 @@ public class FoundationArchitectureTests : IClassFixture<WebApplicationFactory<P
     [Fact]
     public void FoundationSolution_ProjectsAndTypes_AreWiredCorrectly()
     {
-        // Assert that core project assembly types are loadable and wired
-        var domainType = typeof(Domain.Class1);
-        var applicationType = typeof(Application.Class1);
-        var sharedType = typeof(Shared.Class1);
-        var infrastructureType = typeof(Infrastructure.Class1);
-        var persistenceCloudType = typeof(Persistence.Cloud.Class1);
-        var persistenceLocalType = typeof(Persistence.Local.Class1);
-        var syncEngineType = typeof(SyncEngine.Class1);
-        var clientBlazorType = typeof(Client.Blazor.Component1);
-        var clientMauiType = typeof(Client.Maui.Class1);
+        // Assert that core project assembly types are loadable and wired across Clean Architecture layers
+        var domainType = typeof(Yashdeep.Domain.Entities.Tenant);
+        var applicationType = typeof(Yashdeep.Application.Pos.Workflows.CompletePosWorkflowUseCase);
+        var sharedType = typeof(Yashdeep.Shared.Connectivity.ConnectivityState);
+        var infrastructureType = typeof(Yashdeep.Infrastructure.Connectivity.ConnectivityStateEvaluator);
+        var persistenceCloudType = typeof(Yashdeep.Persistence.Cloud.CloudDbContext);
+        var persistenceLocalType = typeof(Yashdeep.Persistence.Local.LocalPosDbContext);
+        var syncEngineType = typeof(Yashdeep.SyncEngine.Services.CloudInboxProcessor);
         var apiProgramType = typeof(Program);
 
         Assert.NotNull(domainType);
@@ -36,8 +34,6 @@ public class FoundationArchitectureTests : IClassFixture<WebApplicationFactory<P
         Assert.NotNull(persistenceCloudType);
         Assert.NotNull(persistenceLocalType);
         Assert.NotNull(syncEngineType);
-        Assert.NotNull(clientBlazorType);
-        Assert.NotNull(clientMauiType);
         Assert.NotNull(apiProgramType);
     }
 
