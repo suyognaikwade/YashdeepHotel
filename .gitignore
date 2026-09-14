@@ -1,1 +1,9 @@
 decompiled_src/
+bin/
+obj/
+**/bin/
+**/obj/
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
