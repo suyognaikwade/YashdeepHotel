@@ -33,7 +33,7 @@ public interface IAuditRepository
     Task<IReadOnlyList<AuditEvent>> GetEventsByReferenceAsync(Guid referenceId, Guid tenantId, CancellationToken cancellationToken = default);
 }
 
-public interface IOutboxRepository
+public interface IPosOutboxRepository
 {
     Task AddMessageAsync(OutboxMessage message, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OutboxMessage>> GetPendingMessagesAsync(Guid tenantId, int batchSize = 50, CancellationToken cancellationToken = default);
@@ -46,7 +46,7 @@ public interface ILocalPosUnitOfWork
     IBillRepository Bills { get; }
     IStockRepository Stock { get; }
     IAuditRepository Audits { get; }
-    IOutboxRepository Outbox { get; }
+    IPosOutboxRepository Outbox { get; }
     Task<int> CommitTransactionAsync(CancellationToken cancellationToken = default);
 }
 
