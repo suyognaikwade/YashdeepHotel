@@ -6,11 +6,11 @@ using Yashdeep.Application.Pos.UI;
 using Yashdeep.Application.Pos.Workflows;
 using Yashdeep.Domain.Entities.Billing;
 using Yashdeep.Domain.Entities.Orders;
-using Yashdeep.Domain.Entities.Sync;
+using Yashdeep.Domain.Outbox;
 using Yashdeep.Domain.ValueObjects;
-using Yashdeep.Infrastructure.Persistence;
 using Yashdeep.Infrastructure.Printing;
 using Yashdeep.Infrastructure.SyncEngine;
+using Yashdeep.Persistence.Local.Persistence;
 using Xunit;
 
 public class PosVerticalSliceTests
@@ -18,7 +18,7 @@ public class PosVerticalSliceTests
     private readonly LocalPosMemoryDbContext _dbContext;
     private readonly LocalPosUnitOfWork _unitOfWork;
     private readonly TestPrinterService _printerService;
-    private readonly CloudInboxProcessor _inboxProcessor;
+    private readonly PosCloudInboxProcessor _inboxProcessor;
     private readonly CloudSyncEngine _syncEngine;
     private readonly CompletePosWorkflowUseCase _workflowUseCase;
     private readonly PosTerminalUiController _uiController;
@@ -33,7 +33,7 @@ public class PosVerticalSliceTests
         _dbContext = new LocalPosMemoryDbContext();
         _unitOfWork = new LocalPosUnitOfWork(_dbContext);
         _printerService = new TestPrinterService();
-        _inboxProcessor = new CloudInboxProcessor();
+        _inboxProcessor = new PosCloudInboxProcessor();
         _syncEngine = new CloudSyncEngine(_unitOfWork.Outbox, _inboxProcessor);
         _workflowUseCase = new CompletePosWorkflowUseCase(_unitOfWork, _printerService, _syncEngine);
 
@@ -212,7 +212,7 @@ public class PosVerticalSliceTests
         var pendingOutbox = await _unitOfWork.Outbox.GetPendingMessagesAsync(_tenantId);
         Assert.Single(pendingOutbox);
         var outboxMsg = pendingOutbox.First();
-        Assert.Equal(OutboxMessageStatus.Pending, outboxMsg.Status);
+        Assert.Equal(OutboxStatus.Pending, outboxMsg.Status);
         Assert.False(string.IsNullOrWhiteSpace(outboxMsg.PayloadHash));
 
         // Verify Printer Service received receipt streams

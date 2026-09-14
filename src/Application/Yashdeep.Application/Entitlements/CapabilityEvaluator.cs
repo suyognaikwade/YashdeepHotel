@@ -14,7 +14,7 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
     private readonly IEntitlementTokenVerifier _tokenVerifier;
     private readonly Func<SignedEntitlementEnvelope?>? _currentEnvelopeProvider;
     private readonly Func<DateTime>? _currentTimeProvider;
-    private readonly ITenantContext? _tenantContext;
+    private readonly IEntitlementTenantContext? _tenantContext;
     private readonly IEntitlementCache? _entitlementCache;
     private readonly IEntitlementStore? _entitlementStore;
 
@@ -22,7 +22,7 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
         IEntitlementTokenVerifier tokenVerifier,
         Func<SignedEntitlementEnvelope?>? currentEnvelopeProvider = null,
         Func<DateTime>? currentTimeProvider = null,
-        ITenantContext? tenantContext = null,
+        IEntitlementTenantContext? tenantContext = null,
         IEntitlementCache? entitlementCache = null,
         IEntitlementStore? entitlementStore = null)
     {
