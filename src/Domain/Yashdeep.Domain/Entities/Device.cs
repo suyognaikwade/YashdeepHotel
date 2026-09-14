@@ -5,37 +5,90 @@ using Yashdeep.Domain.Events;
 
 namespace Yashdeep.Domain.Entities;
 
+/// <summary>
+/// Hardware device instance aggregate tracking registered edge hardware and lifecycle state.
+/// Harmonized to support both rich domain lifecycle workflows and local persistence storage.
+/// </summary>
 public class Device
 {
     private readonly List<IDomainEvent> _domainEvents = new();
+    private string _hardwareId = string.Empty;
 
-    public Guid Id { get; private set; }
-    public Guid TenantId { get; private set; }
-    public Guid OrganizationId { get; private set; }
-    public Guid BranchId { get; private set; }
-    public Guid? OutletId { get; private set; }
-    public Guid? TerminalId { get; private set; }
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid BranchId { get; set; }
+    public Guid? OutletId { get; set; }
+    public Guid? TerminalId { get; set; }
 
-    public string DeviceName { get; private set; } = string.Empty;
-    public string HardwareFingerprint { get; private set; } = string.Empty;
-    public string Platform { get; private set; } = string.Empty;
-    public DeviceType Type { get; private set; }
-    public DeviceLifecycleState State { get; private set; }
+    public string DeviceName { get; set; } = string.Empty;
+    public string HardwareFingerprint { get; set; } = string.Empty;
+    public string Platform { get; set; } = string.Empty;
+    public DeviceType Type { get; set; }
+    public DeviceLifecycleState State { get; set; }
 
-    public string ActivationCode { get; private set; } = string.Empty;
-    public DateTime? ActivationCodeExpiresUtc { get; private set; }
-    public string? CertificateThumbprint { get; private set; }
+    public string ActivationCode { get; set; } = string.Empty;
+    public DateTime? ActivationCodeExpiresUtc { get; set; }
+    public string? CertificateThumbprint { get; set; }
 
-    public DateTime CreatedAtUtc { get; private set; }
-    public DateTime LastUpdatedUtc { get; private set; }
-    public DateTime? LastActiveAtUtc { get; private set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime LastUpdatedUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? LastActiveAtUtc { get; set; }
 
-    public string? StatusReason { get; private set; }
-    public Guid? ReplacedByDeviceId { get; private set; }
+    public string? StatusReason { get; set; }
+    public Guid? ReplacedByDeviceId { get; set; }
+
+    // Compatibility properties for Local Persistence (PR #37)
+    public string HardwareId
+    {
+        get => string.IsNullOrEmpty(_hardwareId) ? HardwareFingerprint : _hardwareId;
+        set
+        {
+            _hardwareId = value;
+            if (string.IsNullOrEmpty(HardwareFingerprint))
+            {
+                HardwareFingerprint = value;
+            }
+        }
+    }
+
+    public string DeviceCertificate
+    {
+        get => CertificateThumbprint ?? string.Empty;
+        set => CertificateThumbprint = value;
+    }
+
+    public bool IsRegistered
+    {
+        get => State == DeviceLifecycleState.Active;
+        set
+        {
+            if (value && State != DeviceLifecycleState.Active)
+            {
+                State = DeviceLifecycleState.Active;
+            }
+            else if (!value && State == DeviceLifecycleState.Active)
+            {
+                State = DeviceLifecycleState.Pending;
+            }
+        }
+    }
+
+    public DateTime? LastVerifiedServerTimeUtc
+    {
+        get => LastActiveAtUtc;
+        set => LastActiveAtUtc = value;
+    }
+
+    public DateTime CreatedUtc
+    {
+        get => CreatedAtUtc;
+        set => CreatedAtUtc = value;
+    }
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
-    private Device() { }
+    public Device() { }
 
     public static Device CreatePending(
         Guid id,
@@ -70,6 +123,7 @@ public class Device
             TerminalId = terminalId,
             DeviceName = deviceName,
             HardwareFingerprint = hardwareFingerprint,
+            HardwareId = hardwareFingerprint,
             Platform = platform,
             Type = type,
             State = DeviceLifecycleState.Pending,
@@ -108,7 +162,6 @@ public class Device
         }
         if (State == DeviceLifecycleState.Active)
         {
-            // Already active, refresh timestamp
             LastUpdatedUtc = DateTime.UtcNow;
             return;
         }
@@ -289,7 +342,7 @@ public class Device
         _domainEvents.Clear();
     }
 
-    private void AddDomainEvent(IDomainEvent domainEvent)
+    public void AddDomainEvent(IDomainEvent domainEvent)
     {
         _domainEvents.Add(domainEvent);
     }

@@ -9,6 +9,9 @@
   <Folder Name="/src/Infrastructure/">
     <Project Path="src/Infrastructure/Yashdeep.Infrastructure/Yashdeep.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Persistence/">
+    <Project Path="src/Persistence/Yashdeep.Persistence.Local/Yashdeep.Persistence.Local.csproj" />
+  </Folder>
   <Folder Name="/src/Server/">
     <Project Path="src/Server/Yashdeep.Server.Api/Yashdeep.Server.Api.csproj" />
   </Folder>
@@ -18,5 +21,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Yashdeep.Tests/Yashdeep.Tests.csproj" />
     <Project Path="tests/Yashdeep.Tests.DeviceRegistration/Yashdeep.Tests.DeviceRegistration.csproj" />
+    <Project Path="tests/Yashdeep.Persistence.Local.Tests/Yashdeep.Persistence.Local.Tests.csproj" />
   </Folder>
 </Solution>

@@ -8,9 +8,12 @@ obj/
 **/[Bb]in/
 **/[Oo]bj/
 .vs/
+.idea/
 *.user
 *.userosscache
 *.sln.docstates
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.log
