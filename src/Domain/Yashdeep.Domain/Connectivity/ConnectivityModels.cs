@@ -1,3 +1,5 @@
+using Yashdeep.Shared.Connectivity;
+
 namespace Yashdeep.Domain.Connectivity;
 
 /// <summary>

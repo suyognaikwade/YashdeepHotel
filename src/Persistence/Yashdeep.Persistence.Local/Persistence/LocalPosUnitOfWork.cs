@@ -4,10 +4,9 @@ using Yashdeep.Domain.Entities.Audit;
 using Yashdeep.Domain.Entities.Billing;
 using Yashdeep.Domain.Entities.Inventory;
 using Yashdeep.Domain.Entities.Orders;
-using Yashdeep.Domain.Entities.Sync;
-using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Domain.Outbox;
 
-namespace Yashdeep.Infrastructure.Persistence;
+namespace Yashdeep.Persistence.Local.Persistence;
 
 public class LocalPosMemoryDbContext
 {
@@ -25,7 +24,7 @@ public class LocalPosMemoryDbContext
     }
 }
 
-public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRepository, IStockRepository, IAuditRepository, IOutboxRepository
+public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRepository, IStockRepository, IAuditRepository, IPosOutboxRepository
 {
     private readonly LocalPosMemoryDbContext _dbContext;
 
@@ -33,7 +32,7 @@ public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRe
     public IBillRepository Bills => this;
     public IStockRepository Stock => this;
     public IAuditRepository Audits => this;
-    public IOutboxRepository Outbox => this;
+    public IPosOutboxRepository Outbox => this;
 
     public LocalPosUnitOfWork(LocalPosMemoryDbContext dbContext)
     {
@@ -119,28 +118,28 @@ public class LocalPosUnitOfWork : ILocalPosUnitOfWork, IOrderRepository, IBillRe
     }
 
     // --- Outbox Repository ---
-    Task IOutboxRepository.AddMessageAsync(OutboxMessage message, CancellationToken cancellationToken)
+    Task IPosOutboxRepository.AddMessageAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
         _dbContext.OutboxMessages[message.EventId] = message;
         return Task.CompletedTask;
     }
 
-    Task<IReadOnlyList<OutboxMessage>> IOutboxRepository.GetPendingMessagesAsync(Guid tenantId, int batchSize, CancellationToken cancellationToken)
+    Task<IReadOnlyList<OutboxMessage>> IPosOutboxRepository.GetPendingMessagesAsync(Guid tenantId, int batchSize, CancellationToken cancellationToken)
     {
         var list = _dbContext.OutboxMessages.Values
-            .Where(m => m.TenantId == tenantId && m.Status == OutboxMessageStatus.Pending)
+            .Where(m => m.TenantId == tenantId && m.Status == OutboxStatus.Pending)
             .Take(batchSize)
             .ToList();
         return Task.FromResult<IReadOnlyList<OutboxMessage>>(list);
     }
 
-    Task IOutboxRepository.MarkAsUploadedAsync(IEnumerable<Guid> eventIds, CancellationToken cancellationToken)
+    Task IPosOutboxRepository.MarkAsUploadedAsync(IEnumerable<Guid> eventIds, CancellationToken cancellationToken)
     {
         foreach (var eventId in eventIds)
         {
             if (_dbContext.OutboxMessages.TryGetValue(eventId, out var msg))
             {
-                msg.MarkUploaded();
+                msg.MarkSynced();
             }
         }
         return Task.CompletedTask;

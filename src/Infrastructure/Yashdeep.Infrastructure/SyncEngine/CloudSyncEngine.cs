@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Yashdeep.Application.Common.Interfaces;
-using Yashdeep.Domain.Entities.Sync;
+using Yashdeep.Domain.Outbox;
 
 namespace Yashdeep.Infrastructure.SyncEngine;
 
-public class CloudInboxProcessor
+public class PosCloudInboxProcessor
 {
     private readonly ConcurrentDictionary<string, OutboxMessage> _cloudProcessedEvents = new();
 
@@ -48,13 +48,13 @@ public class CloudInboxProcessor
 
 public class CloudSyncEngine : ICloudSyncEngine
 {
-    private readonly IOutboxRepository _outboxRepository;
-    private readonly CloudInboxProcessor _inboxProcessor;
+    private readonly IPosOutboxRepository _outboxRepository;
+    private readonly PosCloudInboxProcessor _inboxProcessor;
     private bool _isOnline = true;
 
     public CloudSyncEngine(
-        IOutboxRepository outboxRepository,
-        CloudInboxProcessor inboxProcessor)
+        IPosOutboxRepository outboxRepository,
+        PosCloudInboxProcessor inboxProcessor)
     {
         _outboxRepository = outboxRepository ?? throw new ArgumentNullException(nameof(outboxRepository));
         _inboxProcessor = inboxProcessor ?? throw new ArgumentNullException(nameof(inboxProcessor));

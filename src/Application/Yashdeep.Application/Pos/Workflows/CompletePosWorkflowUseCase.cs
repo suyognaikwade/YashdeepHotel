@@ -5,7 +5,7 @@ using Yashdeep.Domain.Entities.Audit;
 using Yashdeep.Domain.Entities.Billing;
 using Yashdeep.Domain.Entities.Inventory;
 using Yashdeep.Domain.Entities.Orders;
-using Yashdeep.Domain.Entities.Sync;
+using Yashdeep.Domain.Outbox;
 using Yashdeep.Domain.ValueObjects;
 
 namespace Yashdeep.Application.Pos.Workflows;
@@ -199,14 +199,16 @@ public class CompletePosWorkflowUseCase
 
         var outboxMsg = new OutboxMessage(
             Guid.NewGuid(),
-            "PosTransactionCompletedEvent",
             "Bill",
             bill.Id,
             command.TenantId,
             command.BranchId,
             command.DeviceId,
-            sequenceNumber: bill.DailySequenceNumber,
-            payloadJson: outboxPayload
+            bill.DailySequenceNumber,
+            "PosTransactionCompletedEvent",
+            1,
+            DateTime.UtcNow,
+            outboxPayload
         );
         await _unitOfWork.Outbox.AddMessageAsync(outboxMsg, cancellationToken);
         outboxEventIds.Add(outboxMsg.EventId);
