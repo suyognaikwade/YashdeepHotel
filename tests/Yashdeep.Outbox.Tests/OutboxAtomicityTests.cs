@@ -140,4 +140,58 @@ public class OutboxAtomicityTests : IDisposable
         Assert.Equal(deviceId, persistedOutbox.DeviceId);
         Assert.Equal(OutboxStatus.Pending, persistedOutbox.Status);
     }
+
+    [Fact]
+    public async Task ApplicationFailure_MidwayThroughTransaction_RollsBackAllMutationsAndOutboxMessages()
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+
+        using (var dbContext = new LocalPosDbContext(_options))
+        {
+            var unitOfWork = new LocalUnitOfWork(dbContext);
+            var repository = new OutboxRepository(dbContext);
+
+            // Act - Simulate an unhandled exception thrown during transaction execution prior to commit
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            {
+                await using (var transaction = await unitOfWork.BeginTransactionAsync())
+                {
+                    var order = new LocalOrder(orderId, tenantId, branchId, "ORD-ERR-01", 999.00m);
+                    dbContext.Orders.Add(order);
+
+                    var domainEvent = new OrderPlacedEvent
+                    {
+                        EventId = eventId,
+                        AggregateId = orderId,
+                        TenantId = tenantId,
+                        BranchId = branchId,
+                        DeviceId = deviceId,
+                        OrderNumber = "ORD-ERR-01",
+                        TotalAmount = 999.00m
+                    };
+
+                    var outboxMessage = OutboxMessage.FromEvent(domainEvent, 1, "{\"orderNumber\":\"ORD-ERR-01\"}");
+                    await repository.AddAsync(outboxMessage);
+
+                    await unitOfWork.SaveChangesAsync();
+
+                    // Unexpected application crash / unhandled failure before transaction.CommitAsync()
+                    throw new InvalidOperationException("Simulated catastrophic application crash during checkout processing!");
+                }
+            });
+        }
+
+        // Assert - Verify using a fresh DbContext instance that neither business mutation nor outbox message was persisted
+        using var verifyContext = new LocalPosDbContext(_options);
+        var persistedOrder = await verifyContext.Orders.FindAsync(orderId);
+        var persistedOutbox = await verifyContext.OutboxMessages.FindAsync(eventId);
+
+        Assert.Null(persistedOrder);
+        Assert.Null(persistedOutbox);
+    }
 }
