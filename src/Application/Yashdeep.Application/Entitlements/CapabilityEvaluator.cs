@@ -14,20 +14,29 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
     private readonly IEntitlementTokenVerifier _tokenVerifier;
     private readonly Func<SignedEntitlementEnvelope?>? _currentEnvelopeProvider;
     private readonly Func<DateTime>? _currentTimeProvider;
+    private readonly ITenantContext? _tenantContext;
+    private readonly IEntitlementCache? _entitlementCache;
+    private readonly IEntitlementStore? _entitlementStore;
 
     public CapabilityEvaluator(
         IEntitlementTokenVerifier tokenVerifier,
         Func<SignedEntitlementEnvelope?>? currentEnvelopeProvider = null,
-        Func<DateTime>? currentTimeProvider = null)
+        Func<DateTime>? currentTimeProvider = null,
+        ITenantContext? tenantContext = null,
+        IEntitlementCache? entitlementCache = null,
+        IEntitlementStore? entitlementStore = null)
     {
         _tokenVerifier = tokenVerifier ?? throw new ArgumentNullException(nameof(tokenVerifier));
         _currentEnvelopeProvider = currentEnvelopeProvider;
         _currentTimeProvider = currentTimeProvider ?? (() => DateTime.UtcNow);
+        _tenantContext = tenantContext;
+        _entitlementCache = entitlementCache;
+        _entitlementStore = entitlementStore;
     }
 
     public bool IsCapabilityEnabled(CapabilityId capabilityId)
     {
-        var envelope = _currentEnvelopeProvider?.Invoke();
+        var envelope = ResolveEnvelopeForCurrentContext();
         if (envelope == null)
         {
             return false;
@@ -44,7 +53,7 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
 
     public IReadOnlySet<CapabilityId> GetActiveCapabilities()
     {
-        var envelope = _currentEnvelopeProvider?.Invoke();
+        var envelope = ResolveEnvelopeForCurrentContext();
         if (envelope == null)
         {
             return new HashSet<CapabilityId>();
@@ -68,6 +77,16 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
             return new HashSet<CapabilityId>();
         }
 
+        // Validate Tenant Context if present
+        if (_tenantContext != null && !string.IsNullOrWhiteSpace(_tenantContext.TenantId))
+        {
+            if (!string.Equals(_tenantContext.TenantId, payload.TenantId, StringComparison.OrdinalIgnoreCase))
+            {
+                // Mismatched tenant context vs token tenant payload
+                return new HashSet<CapabilityId>();
+            }
+        }
+
         if (payload.SubscriptionStatus.Equals("Suspended", StringComparison.OrdinalIgnoreCase) ||
             payload.SubscriptionStatus.Equals("Terminated", StringComparison.OrdinalIgnoreCase))
         {
@@ -89,7 +108,7 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
 
     public EntitlementCapacityLimits GetCapacityLimits()
     {
-        var envelope = _currentEnvelopeProvider?.Invoke();
+        var envelope = ResolveEnvelopeForCurrentContext();
         if (envelope == null)
         {
             return new EntitlementCapacityLimits();
@@ -127,5 +146,37 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
         {
             return null;
         }
+    }
+
+    private SignedEntitlementEnvelope? ResolveEnvelopeForCurrentContext()
+    {
+        var activeTenantId = _tenantContext?.TenantId;
+
+        // Try cached envelope if active tenant context is known
+        if (!string.IsNullOrWhiteSpace(activeTenantId) && _entitlementCache != null)
+        {
+            var cached = _entitlementCache.GetCachedEnvelope(activeTenantId);
+            if (cached != null)
+            {
+                return cached;
+            }
+        }
+
+        // Try current dynamic envelope provider
+        var envelope = _currentEnvelopeProvider?.Invoke();
+
+        // If not found in current envelope provider, try entitlement store
+        if (envelope == null && !string.IsNullOrWhiteSpace(activeTenantId) && _entitlementStore != null)
+        {
+            envelope = _entitlementStore.GetEnvelopeForTenant(activeTenantId);
+        }
+
+        // Cache envelope if available
+        if (envelope != null && !string.IsNullOrWhiteSpace(activeTenantId) && _entitlementCache != null)
+        {
+            _entitlementCache.CacheEnvelope(activeTenantId, envelope);
+        }
+
+        return envelope;
     }
 }
