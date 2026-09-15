@@ -301,4 +301,64 @@ public class DeviceRegistrationTests
         Assert.False(token.Contains("Password", StringComparison.OrdinalIgnoreCase));
         Assert.False(token.Contains("Postgres", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public async Task FullLifecycleTransitions_FromPendingToActiveSuspendedRecoveredAndRevoked()
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var provider = new TestDeviceIdentityProvider("FullLifecycle");
+
+        // 1. Pending
+        var reg = await _service.RegisterDeviceAsync(new RegisterDeviceRequest(
+            tenantId, orgId, branchId, null, null, "POS-Lifecycle", provider.GetHardwareFingerprint(), "Windows", DeviceType.DesktopPos));
+
+        var statusPending = await _service.GetDeviceStatusAsync(tenantId, reg.DeviceId);
+        Assert.Equal(DeviceLifecycleState.Pending, statusPending.State);
+
+        // 2. Active
+        var act = await _service.ActivateDeviceAsync(new ActivateDeviceRequest(
+            tenantId, branchId, reg.DeviceId, reg.ActivationCode, provider.GetHardwareFingerprint()));
+        Assert.Equal("Active", act.Status);
+
+        // 3. Suspend
+        await _service.SuspendDeviceAsync(new SuspendDeviceRequest(tenantId, reg.DeviceId, "Maintenance"));
+        var statusSuspended = await _service.GetDeviceStatusAsync(tenantId, reg.DeviceId);
+        Assert.Equal(DeviceLifecycleState.Suspended, statusSuspended.State);
+
+        // 4. Recover
+        await _service.RecoverDeviceAsync(new RecoverDeviceRequest(tenantId, reg.DeviceId, "Maintenance Complete"));
+        var statusRecovered = await _service.GetDeviceStatusAsync(tenantId, reg.DeviceId);
+        Assert.Equal(DeviceLifecycleState.Active, statusRecovered.State);
+
+        // 5. Revoke
+        await _service.RevokeDeviceAsync(new RevokeDeviceRequest(tenantId, reg.DeviceId, "Decommissioned"));
+        var statusRevoked = await _service.GetDeviceStatusAsync(tenantId, reg.DeviceId);
+        Assert.Equal(DeviceLifecycleState.Revoked, statusRevoked.State);
+
+        // 6. Verify cannot recover from Revoked state
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.RecoverDeviceAsync(new RecoverDeviceRequest(tenantId, reg.DeviceId, "Reopen")));
+        Assert.Contains("Only Suspended devices can be recovered", ex.Message);
+    }
+
+    [Fact]
+    public void TamperedTokenSignature_FailsValidation()
+    {
+        // Arrange
+        var payload = new DeviceTokenPayload(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, null, "HW-FINGERPRINT", "Active", DateTime.UtcNow, DateTime.UtcNow.AddHours(1));
+
+        var token = _tokenService.IssueToken(payload);
+        var tamperedToken = token + "TAMPERED";
+
+        // Act
+        var result = _tokenService.ValidateToken(tamperedToken);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Contains("Invalid token signature", result.ErrorReason);
+    }
 }
