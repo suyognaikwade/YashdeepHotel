@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -223,6 +225,79 @@ namespace Yashdeep.SyncEngine.Tests
         }
 
         [Fact]
+        public async Task ProcessEventAsync_SameEventUnderDifferentTenant_ProcessedIndependently()
+        {
+            var options = CreateNewInMemoryOptions();
+            Guid tenantA = Guid.NewGuid();
+            Guid tenantB = Guid.NewGuid();
+            Guid sharedEventId = Guid.NewGuid();
+            int executionCountA = 0;
+            int executionCountB = 0;
+
+            using (var initDb = CreateDbContext(options))
+            {
+                initDb.Database.EnsureCreated();
+            }
+
+            var envelopeA = new IncomingEventEnvelope
+            {
+                EventId = sharedEventId,
+                TenantId = tenantA,
+                BranchId = Guid.NewGuid(),
+                DeviceId = Guid.NewGuid(),
+                EventType = "OrderPlacedEvent",
+                AggregateType = "Order",
+                AggregateId = Guid.NewGuid(),
+                SequenceNumber = 1,
+                PayloadJson = JsonSerializer.Serialize(new SampleOrderPlacedEvent { OrderId = Guid.NewGuid(), TotalAmount = 100m })
+            };
+
+            var envelopeB = new IncomingEventEnvelope
+            {
+                EventId = sharedEventId, // Same EventId
+                TenantId = tenantB,      // Different Tenant
+                BranchId = Guid.NewGuid(),
+                DeviceId = Guid.NewGuid(),
+                EventType = "OrderPlacedEvent",
+                AggregateType = "Order",
+                AggregateId = Guid.NewGuid(),
+                SequenceNumber = 1,
+                PayloadJson = JsonSerializer.Serialize(new SampleOrderPlacedEvent { OrderId = Guid.NewGuid(), TotalAmount = 200m })
+            };
+
+            // Process under Tenant A
+            using (var dbA = CreateDbContext(options, tenantA))
+            {
+                var processorA = new CloudInboxProcessor(dbA);
+                var resA = await processorA.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                    envelopeA, tenantA, (evt, ct) => { executionCountA++; return Task.FromResult(new SampleOrderResult { Status = "TenantA_OK" }); });
+                Assert.True(resA.IsSuccess);
+            }
+
+            // Process under Tenant B
+            using (var dbB = CreateDbContext(options, tenantB))
+            {
+                var processorB = new CloudInboxProcessor(dbB);
+                var resB = await processorB.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                    envelopeB, tenantB, (evt, ct) => { executionCountB++; return Task.FromResult(new SampleOrderResult { Status = "TenantB_OK" }); });
+                Assert.True(resB.IsSuccess);
+            }
+
+            Assert.Equal(1, executionCountA);
+            Assert.Equal(1, executionCountB);
+
+            // Verify both Inbox records exist independently under their respective tenant composite key
+            using (var dbCheck = CreateDbContext(options))
+            {
+                var msgA = await dbCheck.InboxMessages.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.TenantId == tenantA && x.EventId == sharedEventId);
+                var msgB = await dbCheck.InboxMessages.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.TenantId == tenantB && x.EventId == sharedEventId);
+                Assert.NotNull(msgA);
+                Assert.NotNull(msgB);
+                Assert.NotEqual(msgA!.TenantId, msgB!.TenantId);
+            }
+        }
+
+        [Fact]
         public async Task ProcessEventAsync_EventIdReuseWithModifiedPayload_RejectsEventAndStoresPayloadMismatch()
         {
             var options = CreateNewInMemoryOptions();
@@ -367,6 +442,78 @@ namespace Yashdeep.SyncEngine.Tests
         }
 
         [Fact]
+        public async Task ProcessEventAsync_TrueParallelConcurrentSubmissions_ExecutesDomainHandlerOnceOnly()
+        {
+            var options = CreateNewInMemoryOptions();
+            Guid tenantId = Guid.NewGuid();
+            Guid eventId = Guid.NewGuid();
+            Guid orderId = Guid.NewGuid();
+            int executionCount = 0;
+
+            using (var initDb = CreateDbContext(options, tenantId))
+            {
+                initDb.Database.EnsureCreated();
+            }
+
+            var envelope = new IncomingEventEnvelope
+            {
+                EventId = eventId,
+                TenantId = tenantId,
+                BranchId = Guid.NewGuid(),
+                DeviceId = Guid.NewGuid(),
+                EventType = "OrderPlacedEvent",
+                AggregateType = "Order",
+                AggregateId = orderId,
+                SequenceNumber = 1,
+                PayloadJson = JsonSerializer.Serialize(new SampleOrderPlacedEvent
+                {
+                    OrderId = orderId,
+                    TableNumber = "T-Parallel",
+                    TotalAmount = 1250.00m
+                })
+            };
+
+            int taskCount = 8;
+            var tasks = new List<Task<SyncProcessingResult<SampleOrderResult>>>();
+
+            for (int i = 0; i < taskCount; i++)
+            {
+                tasks.Add(Task.Run(async () =>
+                {
+                    using var db = CreateDbContext(options, tenantId);
+                    var processor = new CloudInboxProcessor(db);
+                    return await processor.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                        envelope,
+                        tenantId,
+                        async (evt, ct) =>
+                        {
+                            Interlocked.Increment(ref executionCount);
+                            await Task.Delay(20, ct); // Simulate non-trivial domain processing delay
+                            return new SampleOrderResult
+                            {
+                                OrderId = evt.OrderId,
+                                Status = "ParallelCommitted",
+                                ProcessedAt = DateTime.UtcNow
+                            };
+                        });
+                }));
+            }
+
+            var results = await Task.WhenAll(tasks);
+
+            // Exactly 1 execution of domain handler
+            Assert.Equal(1, executionCount);
+
+            // All tasks must report success
+            Assert.All(results, r => Assert.True(r.IsSuccess));
+
+            // Exactly 1 non-duplicate, and (taskCount - 1) duplicates returning cached data
+            Assert.Equal(1, results.Count(r => !r.IsDuplicate));
+            Assert.Equal(taskCount - 1, results.Count(r => r.IsDuplicate));
+            Assert.All(results, r => Assert.Equal(orderId, r.Data!.OrderId));
+        }
+
+        [Fact]
         public async Task ProcessEventAsync_DomainHandlerFailure_RollsBackTransaction()
         {
             var options = CreateNewInMemoryOptions();
@@ -406,6 +553,163 @@ namespace Yashdeep.SyncEngine.Tests
             // Transaction rolled back; InboxMessage should NOT exist in DB
             var inboxRecord = await db.InboxMessages.FirstOrDefaultAsync(x => x.EventId == eventId);
             Assert.Null(inboxRecord);
+        }
+
+        [Fact]
+        public async Task ProcessEventAsync_MalformedJsonPayload_ReturnsRejectedWithoutExecutingDomainHandler()
+        {
+            var options = CreateNewInMemoryOptions();
+            Guid tenantId = Guid.NewGuid();
+            int executionCount = 0;
+
+            using (var initDb = CreateDbContext(options, tenantId))
+            {
+                initDb.Database.EnsureCreated();
+            }
+
+            var malformedEnvelope = new IncomingEventEnvelope
+            {
+                EventId = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = Guid.NewGuid(),
+                DeviceId = Guid.NewGuid(),
+                EventType = "OrderPlacedEvent",
+                AggregateType = "Order",
+                AggregateId = Guid.NewGuid(),
+                SequenceNumber = 1,
+                PayloadJson = "{ invalid json payload syntax ... }"
+            };
+
+            using var db = CreateDbContext(options, tenantId);
+            var processor = new CloudInboxProcessor(db);
+
+            var result = await processor.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                malformedEnvelope,
+                tenantId,
+                (evt, ct) => { executionCount++; return Task.FromResult(new SampleOrderResult()); });
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(InboxStatus.Rejected, result.Status);
+            Assert.Contains("Failed to deserialize payload JSON", result.ErrorMessage);
+            Assert.Equal(0, executionCount);
+        }
+
+        [Fact]
+        public async Task ProcessEventAsync_ServerCommitFollowedByLostResponse_ReturnsCachedResultOnRetry()
+        {
+            var options = CreateNewInMemoryOptions();
+            Guid tenantId = Guid.NewGuid();
+            Guid eventId = Guid.NewGuid();
+            Guid orderId = Guid.NewGuid();
+            int executionCount = 0;
+
+            using (var initDb = CreateDbContext(options, tenantId))
+            {
+                initDb.Database.EnsureCreated();
+            }
+
+            var envelope = new IncomingEventEnvelope
+            {
+                EventId = eventId,
+                TenantId = tenantId,
+                BranchId = Guid.NewGuid(),
+                DeviceId = Guid.NewGuid(),
+                EventType = "OrderPlacedEvent",
+                AggregateType = "Order",
+                AggregateId = orderId,
+                SequenceNumber = 101,
+                PayloadJson = JsonSerializer.Serialize(new SampleOrderPlacedEvent { OrderId = orderId, TableNumber = "T-LostResponse" })
+            };
+
+            // Attempt 1: Server processes successfully and commits, but response dropped on wire
+            using (var db1 = CreateDbContext(options, tenantId))
+            {
+                var processor1 = new CloudInboxProcessor(db1);
+                var initialResult = await processor1.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                    envelope,
+                    tenantId,
+                    (evt, ct) =>
+                    {
+                        executionCount++;
+                        return Task.FromResult(new SampleOrderResult { OrderId = orderId, Status = "CommittedOnServer" });
+                    });
+
+                Assert.True(initialResult.IsSuccess);
+                // Assume HTTP connection dropped here before client receives initialResult
+            }
+
+            // Attempt 2: Client retries the request
+            using (var db2 = CreateDbContext(options, tenantId))
+            {
+                var processor2 = new CloudInboxProcessor(db2);
+                var retryResult = await processor2.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                    envelope,
+                    tenantId,
+                    (evt, ct) =>
+                    {
+                        executionCount++;
+                        return Task.FromResult(new SampleOrderResult { OrderId = orderId, Status = "ReExecutedShouldNotHappen" });
+                    });
+
+                Assert.True(retryResult.IsSuccess);
+                Assert.True(retryResult.IsDuplicate);
+                Assert.NotNull(retryResult.Data);
+                Assert.Equal("CommittedOnServer", retryResult.Data!.Status);
+            }
+
+            // Business logic ran exactly once
+            Assert.Equal(1, executionCount);
+        }
+
+        [Fact]
+        public async Task ProcessEventAsync_ApplicationRestartSimulation_RetrievesCachedResponseFromFreshDbContext()
+        {
+            var options = CreateNewInMemoryOptions();
+            Guid tenantId = Guid.NewGuid();
+            Guid eventId = Guid.NewGuid();
+            Guid orderId = Guid.NewGuid();
+
+            using (var initDb = CreateDbContext(options, tenantId))
+            {
+                initDb.Database.EnsureCreated();
+            }
+
+            var envelope = new IncomingEventEnvelope
+            {
+                EventId = eventId,
+                TenantId = tenantId,
+                BranchId = Guid.NewGuid(),
+                DeviceId = Guid.NewGuid(),
+                EventType = "OrderPlacedEvent",
+                AggregateType = "Order",
+                AggregateId = orderId,
+                SequenceNumber = 1,
+                PayloadJson = JsonSerializer.Serialize(new SampleOrderPlacedEvent { OrderId = orderId, TableNumber = "T-Restart" })
+            };
+
+            // Pre-restart execution
+            using (var dbPreRestart = CreateDbContext(options, tenantId))
+            {
+                var processor = new CloudInboxProcessor(dbPreRestart);
+                await processor.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                    envelope,
+                    tenantId,
+                    (evt, ct) => Task.FromResult(new SampleOrderResult { OrderId = orderId, Status = "PreRestartSuccess" }));
+            }
+
+            // Post-restart simulation (brand new DbContext instance)
+            using (var dbPostRestart = CreateDbContext(options, tenantId))
+            {
+                var processor = new CloudInboxProcessor(dbPostRestart);
+                var result = await processor.ProcessEventAsync<SampleOrderPlacedEvent, SampleOrderResult>(
+                    envelope,
+                    tenantId,
+                    (evt, ct) => throw new InvalidOperationException("Handler should not run post-restart duplicate"));
+
+                Assert.True(result.IsSuccess);
+                Assert.True(result.IsDuplicate);
+                Assert.Equal("PreRestartSuccess", result.Data!.Status);
+            }
         }
     }
 }

@@ -120,11 +120,14 @@ namespace Yashdeep.SyncEngine.Services
                         await transaction.RollbackAsync(cancellationToken);
                     }
 
+                    _dbContext.ChangeTracker.Clear();
+
                     // Concurrent duplicate submission race condition recovery: re-read processed result (retry up to 10 times for in-flight transaction completion)
                     for (int attempt = 0; attempt < 10; attempt++)
                     {
                         var reRead = await _dbContext.InboxMessages
                             .IgnoreQueryFilters()
+                            .AsNoTracking()
                             .FirstOrDefaultAsync(x => x.TenantId == authenticatedTenantId && x.EventId == envelope.EventId, cancellationToken);
 
                         if (reRead != null && (reRead.Status == InboxStatus.Processed || reRead.Status == InboxStatus.PayloadMismatch || reRead.Status == InboxStatus.Rejected))
@@ -137,6 +140,7 @@ namespace Yashdeep.SyncEngine.Services
 
                     var finalReRead = await _dbContext.InboxMessages
                         .IgnoreQueryFilters()
+                        .AsNoTracking()
                         .FirstOrDefaultAsync(x => x.TenantId == authenticatedTenantId && x.EventId == envelope.EventId, cancellationToken);
 
                     if (finalReRead != null)
@@ -177,6 +181,7 @@ namespace Yashdeep.SyncEngine.Services
             // Integrity check: Event ID reuse with modified payload protection
             if (existingMessage.PayloadHash != computedHash)
             {
+                _dbContext.ChangeTracker.Clear();
                 existingMessage.Status = InboxStatus.PayloadMismatch;
                 existingMessage.ErrorMessage = "Event ID reuse detected with modified payload hash.";
                 existingMessage.DiagnosticsJson = JsonSerializer.Serialize(new
@@ -186,6 +191,7 @@ namespace Yashdeep.SyncEngine.Services
                     AttemptedAtUtc = DateTime.UtcNow
                 });
 
+                _dbContext.InboxMessages.Update(existingMessage);
                 await _dbContext.SaveChangesAsync(cancellationToken);
 
                 return SyncProcessingResult<TResponse>.Failure(
