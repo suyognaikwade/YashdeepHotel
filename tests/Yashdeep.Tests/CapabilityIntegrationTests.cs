@@ -301,6 +301,88 @@ public class CapabilityIntegrationTests
         Assert.Empty(evaluator.GetActiveCapabilities());
     }
 
+    [Fact]
+    public void VerifySignature_WithUntrustedPublicKeyInEnvelope_RejectedWhenDefaultKeyConfigured()
+    {
+        var now = DateTime.UtcNow;
+        // Trusted service configured with official server public key
+        var trustedService = new Ed25519EntitlementTokenService(_publicKeyHex);
+
+        // Attacker generates an arbitrary key pair
+        var (attackerPrivKey, _) = _tokenService.GenerateKeyPair();
+        var forgedPayload = new SignedEntitlementTokenPayload
+        {
+            TenantId = "tenant_forged",
+            Capabilities = new HashSet<string> { CapabilityId.PosBilling.Value, CapabilityId.HotelRooms.Value }
+        };
+
+        // Attacker signs payload with attacker private key and embeds attacker public key in envelope
+        var forgedEnvelope = _tokenService.SignTokenPayload(forgedPayload, attackerPrivKey);
+
+        // Evaluation against trusted service MUST fail verification because attacker key != trusted key
+        Assert.False(trustedService.VerifySignature(forgedEnvelope));
+
+        var evaluator = new CapabilityEvaluator(trustedService, () => forgedEnvelope, () => now);
+        Assert.False(evaluator.IsCapabilityEnabled(CapabilityId.PosBilling));
+        Assert.False(evaluator.IsCapabilityEnabled(CapabilityId.HotelRooms));
+        Assert.Empty(evaluator.GetActiveCapabilities());
+    }
+
+    [Fact]
+    public void Evaluate_FutureNotBeforeToken_ReturnsEmptyCapabilities()
+    {
+        var now = DateTime.UtcNow;
+        var future = now.AddDays(5);
+        var payload = new SignedEntitlementTokenPayload
+        {
+            TenantId = "tenant_future",
+            IssuedAtUnix = ((DateTimeOffset)future).ToUnixTimeSeconds(),
+            NotBeforeUnix = ((DateTimeOffset)future).ToUnixTimeSeconds(),
+            ExpirationUnix = ((DateTimeOffset)future.AddDays(30)).ToUnixTimeSeconds(),
+            OfflineGraceExpirationUnix = ((DateTimeOffset)future.AddDays(37)).ToUnixTimeSeconds(),
+            Capabilities = new HashSet<string> { CapabilityId.PosBilling.Value }
+        };
+
+        var envelope = _tokenService.SignTokenPayload(payload, _privateKey);
+        var evaluator = new CapabilityEvaluator(_tokenService, () => envelope, () => now);
+
+        Assert.False(evaluator.IsCapabilityEnabled(CapabilityId.PosBilling));
+        Assert.Empty(evaluator.GetActiveCapabilities());
+    }
+
+    [Fact]
+    public void EntitlementCache_StaleOrExpiredEnvelopeInCache_AutomaticallyEvictedAndInvalidated()
+    {
+        var now = DateTime.UtcNow;
+        var cache = new EntitlementCache();
+        var tenantContext = new TestTenantContext { TenantId = "tenant_stale_cache" };
+
+        var expiredPayload = new SignedEntitlementTokenPayload
+        {
+            TenantId = "tenant_stale_cache",
+            IssuedAtUnix = ((DateTimeOffset)now.AddDays(-60)).ToUnixTimeSeconds(),
+            ExpirationUnix = ((DateTimeOffset)now.AddDays(-30)).ToUnixTimeSeconds(),
+            OfflineGraceExpirationUnix = ((DateTimeOffset)now.AddDays(-20)).ToUnixTimeSeconds(),
+            Capabilities = new HashSet<string> { CapabilityId.PosBilling.Value }
+        };
+        var expiredEnvelope = _tokenService.SignTokenPayload(expiredPayload, _privateKey);
+
+        // Manually insert expired envelope into cache
+        cache.CacheEnvelope("tenant_stale_cache", expiredEnvelope);
+        Assert.NotNull(cache.GetCachedEnvelope("tenant_stale_cache"));
+
+        var evaluator = new CapabilityEvaluator(
+            _tokenService,
+            currentEnvelopeProvider: () => null,
+            currentTimeProvider: () => now,
+            tenantContext: tenantContext,
+            entitlementCache: cache);
+
+        // Evaluation detects expired cached token, returns false and evicts from cache
+        Assert.False(evaluator.IsCapabilityEnabled(CapabilityId.PosBilling));
+        Assert.Null(cache.GetCachedEnvelope("tenant_stale_cache"));
+    }
+
     private class DomainCapabilityCheckerAdapter : IDomainCapabilityChecker
     {
         private readonly ICapabilityEvaluator _evaluator;
