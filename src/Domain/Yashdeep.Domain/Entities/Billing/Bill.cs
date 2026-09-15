@@ -1,4 +1,5 @@
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Domain.Entities.Billing;
 
@@ -10,7 +11,10 @@ public class BillTaxLine
 
     public BillTaxLine(string taxName, decimal ratePercentage, Money taxAmount)
     {
-        TaxName = taxName;
+        if (ratePercentage < 0)
+            throw new ArgumentOutOfRangeException(nameof(ratePercentage), "Tax rate percentage cannot be negative.");
+
+        TaxName = taxName ?? throw new ArgumentNullException(nameof(taxName));
         RatePercentage = ratePercentage;
         TaxAmount = taxAmount;
     }
@@ -71,24 +75,34 @@ public class Bill
         string waiterName,
         Money foodSubTotal,
         Money liquorSubTotal,
+        IDateTimeProvider timeProvider,
         decimal discountPercentage = 0m,
         decimal foodCgstPercent = 2.5m,
         decimal foodSgstPercent = 2.5m,
         decimal liquorVatPercent = 0m)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (tenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        if (branchId == Guid.Empty) throw new ArgumentException("BranchId is required.", nameof(branchId));
+        if (orderId == Guid.Empty) throw new ArgumentException("OrderId is required.", nameof(orderId));
+        if (discountPercentage < 0 || discountPercentage > 100) throw new ArgumentOutOfRangeException(nameof(discountPercentage), "Discount percentage must be between 0 and 100.");
+        if (foodCgstPercent < 0) throw new ArgumentOutOfRangeException(nameof(foodCgstPercent), "CGST percentage cannot be negative.");
+        if (foodSgstPercent < 0) throw new ArgumentOutOfRangeException(nameof(foodSgstPercent), "SGST percentage cannot be negative.");
+        if (liquorVatPercent < 0) throw new ArgumentOutOfRangeException(nameof(liquorVatPercent), "VAT percentage cannot be negative.");
+
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         TenantId = tenantId;
         BranchId = branchId;
         LocationId = locationId;
         OrderId = orderId;
         BusinessDate = businessDate;
-        InvoiceNumber = invoiceNumber ?? throw new ArgumentNullException(nameof(invoiceNumber));
+        InvoiceNumber = string.IsNullOrWhiteSpace(invoiceNumber) ? throw new ArgumentException("Invoice number cannot be empty.", nameof(invoiceNumber)) : invoiceNumber;
         DailySequenceNumber = dailySequenceNumber;
         TableNumber = tableNumber ?? string.Empty;
         WaiterName = waiterName ?? string.Empty;
         Status = BillStatus.Printed;
         PaymentStatus = PaymentStatus.Unpaid;
-        CreatedAtUtc = DateTime.UtcNow;
+        CreatedAtUtc = timeProvider.UtcNow;
 
         FoodSubTotal = foodSubTotal;
         LiquorSubTotal = liquorSubTotal;
@@ -143,20 +157,34 @@ public class Bill
         GrandTotal = new Money(Math.Round(rawGrandTotal, 0, MidpointRounding.AwayFromZero), SubTotal.Currency);
     }
 
-    public void AddPayment(Payment payment)
+    public void AddPayment(Payment payment, IDateTimeProvider timeProvider, bool allowOverpayment = false)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(payment);
+
         if (Status == BillStatus.Cancelled)
             throw new InvalidOperationException("Cannot add payment to a cancelled bill.");
 
+        if (Status == BillStatus.Paid || PaymentStatus == PaymentStatus.Paid)
+            throw new InvalidOperationException("Bill is already fully paid.");
+
+        if (payment.TenantId != TenantId || payment.BranchId != BranchId)
+            throw new InvalidOperationException($"Payment tenant/branch mismatch. Bill ({TenantId}/{BranchId}) vs Payment ({payment.TenantId}/{payment.BranchId})");
+
+        decimal proposedTotalPaid = TotalPaid.Amount + payment.Amount.Amount;
+        if (!allowOverpayment && proposedTotalPaid > GrandTotal.Amount)
+        {
+            throw new InvalidOperationException($"Payment amount {payment.Amount.Amount} exceeds outstanding balance {BalanceDue.Amount}. Split payments must reconcile exactly.");
+        }
+
         _payments.Add(payment);
-        decimal newTotalPaid = _payments.Sum(p => p.Amount.Amount);
-        TotalPaid = new Money(newTotalPaid, GrandTotal.Currency);
+        TotalPaid = new Money(proposedTotalPaid, GrandTotal.Currency);
 
         if (TotalPaid.Amount >= GrandTotal.Amount)
         {
             PaymentStatus = PaymentStatus.Paid;
             Status = BillStatus.Paid;
-            SettledAtUtc = DateTime.UtcNow;
+            SettledAtUtc = timeProvider.UtcNow;
         }
         else
         {

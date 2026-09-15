@@ -4,13 +4,16 @@ using System.Text.Json;
 using Yashdeep.Application.Pos.DTOs;
 using Yashdeep.Application.Pos.UI;
 using Yashdeep.Application.Pos.Workflows;
+using Yashdeep.Domain.Entities.Audit;
 using Yashdeep.Domain.Entities.Billing;
+using Yashdeep.Domain.Entities.Inventory;
 using Yashdeep.Domain.Entities.Orders;
 using Yashdeep.Domain.Entities.Sync;
 using Yashdeep.Domain.ValueObjects;
 using Yashdeep.Infrastructure.Persistence;
 using Yashdeep.Infrastructure.Printing;
 using Yashdeep.Infrastructure.SyncEngine;
+using Yashdeep.Shared.Time;
 using Xunit;
 
 public class PosVerticalSliceTests
@@ -20,6 +23,7 @@ public class PosVerticalSliceTests
     private readonly TestPrinterService _printerService;
     private readonly CloudInboxProcessor _inboxProcessor;
     private readonly CloudSyncEngine _syncEngine;
+    private readonly TestDateTimeProvider _timeProvider;
     private readonly CompletePosWorkflowUseCase _workflowUseCase;
     private readonly PosTerminalUiController _uiController;
 
@@ -35,7 +39,8 @@ public class PosVerticalSliceTests
         _printerService = new TestPrinterService();
         _inboxProcessor = new CloudInboxProcessor();
         _syncEngine = new CloudSyncEngine(_unitOfWork.Outbox, _inboxProcessor);
-        _workflowUseCase = new CompletePosWorkflowUseCase(_unitOfWork, _printerService, _syncEngine);
+        _timeProvider = new TestDateTimeProvider(new DateTime(2025, 5, 1, 10, 0, 0, DateTimeKind.Utc));
+        _workflowUseCase = new CompletePosWorkflowUseCase(_unitOfWork, _printerService, _syncEngine, _timeProvider);
 
         _uiController = new PosTerminalUiController(_workflowUseCase)
         {
@@ -45,11 +50,11 @@ public class PosVerticalSliceTests
             DeviceId = _deviceId,
             ActiveTableNumber = "T-12",
             ActiveSection = SectionTier.Ac,
-            ActiveBusinessDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            ActiveBusinessDate = DateOnly.FromDateTime(_timeProvider.UtcNow),
             CaptainUserId = Guid.NewGuid(),
             WaiterName = "Captain Suresh",
             CashierUserId = "CASHIER_01",
-            DiscountPercentage = 10m // 10% discount test
+            DiscountPercentage = 0m
         };
     }
 
@@ -69,12 +74,18 @@ public class PosVerticalSliceTests
     }
 
     [Fact]
+    public void Domain_Money_NegativeAmount_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Money(-10m));
+    }
+
+    [Fact]
     public void Domain_Bill_TaxCalculationPolicy_ComputesCgstSgstCorrectly()
     {
         // Arrange
         var foodSub = new Money(500m);
         var liquorSub = new Money(0m);
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly today = DateOnly.FromDateTime(_timeProvider.UtcNow);
 
         // Act - Food ₹500, 0% discount, 2.5% CGST + 2.5% SGST (5% total = ₹25 tax)
         var bill = new Bill(
@@ -90,6 +101,7 @@ public class PosVerticalSliceTests
             "Waiter 1",
             foodSub,
             liquorSub,
+            _timeProvider,
             discountPercentage: 0m,
             foodCgstPercent: 2.5m,
             foodSgstPercent: 2.5m
@@ -118,9 +130,10 @@ public class PosVerticalSliceTests
             SectionTier.Family,
             OrderType.DineIn,
             "ORD-101",
-            DateOnly.FromDateTime(DateTime.UtcNow),
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
             Guid.NewGuid(),
-            "Captain Vikas"
+            "Captain Vikas",
+            _timeProvider
         );
 
         order.AddItem(
@@ -134,7 +147,7 @@ public class PosVerticalSliceTests
         );
 
         // Act
-        var kot = order.GenerateKot(KotTicketType.KotKitchen, "KOT-001");
+        var kot = order.GenerateKot(KotTicketType.KotKitchen, "KOT-001", _timeProvider);
 
         // Assert
         Assert.NotNull(kot);
@@ -143,6 +156,169 @@ public class PosVerticalSliceTests
         Assert.Equal("Chicken Tikka", line.EnglishName);
         Assert.Equal("चिकन टिक्का", line.MarathiName);
         Assert.Equal(2, line.Quantity);
+    }
+
+    [Fact]
+    public void Domain_Order_MutationAfterBilling_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            "T-01",
+            SectionTier.Ac,
+            OrderType.DineIn,
+            "ORD-102",
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            Guid.NewGuid(),
+            "Captain Ramesh",
+            _timeProvider
+        );
+
+        order.AddItem(Guid.NewGuid(), "101", "Item 1", "Item 1", DepartmentType.Kitchen, 1, new Money(100m));
+        order.MarkBilled();
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => order.AddItem(Guid.NewGuid(), "102", "Item 2", "Item 2", DepartmentType.Kitchen, 1, new Money(200m)));
+        Assert.Throws<InvalidOperationException>(() => order.GenerateKot(KotTicketType.KotKitchen, "KOT-002", _timeProvider));
+        Assert.Throws<InvalidOperationException>(() => order.MarkBilled());
+    }
+
+    [Fact]
+    public void Domain_Order_ItemConsolidation_ConsolidatesUnsentItems()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            "T-01",
+            SectionTier.Ac,
+            OrderType.DineIn,
+            "ORD-103",
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            Guid.NewGuid(),
+            "Captain Ramesh",
+            _timeProvider
+        );
+
+        Guid itemId = Guid.NewGuid();
+        order.AddItem(itemId, "101", "Butter Chicken", "बटर चिकन", DepartmentType.Kitchen, 1, new Money(300m));
+        order.AddItem(itemId, "101", "Butter Chicken", "बटर चिकन", DepartmentType.Kitchen, 2, new Money(300m));
+
+        Assert.Single(order.Items);
+        Assert.Equal(3, order.Items.First().Quantity);
+
+        // Send to KOT
+        order.GenerateKot(KotTicketType.KotKitchen, "KOT-103", _timeProvider);
+
+        // Add same item again post KOT -> creates new order item line because previous line is sent to KOT
+        order.AddItem(itemId, "101", "Butter Chicken", "बटर चिकन", DepartmentType.Kitchen, 1, new Money(300m));
+        Assert.Equal(2, order.Items.Count);
+    }
+
+    [Fact]
+    public void Domain_Order_DuplicateKotGeneration_ThrowsWhenNoUnsentItems()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            "T-01",
+            SectionTier.Ac,
+            OrderType.DineIn,
+            "ORD-104",
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            Guid.NewGuid(),
+            "Captain Ramesh",
+            _timeProvider
+        );
+
+        order.AddItem(Guid.NewGuid(), "101", "Naan", "नाण", DepartmentType.Kitchen, 2, new Money(40m));
+        order.GenerateKot(KotTicketType.KotKitchen, "KOT-001", _timeProvider);
+
+        // Act & Assert - second KOT attempt for kitchen with zero pending items fails
+        Assert.Throws<InvalidOperationException>(() => order.GenerateKot(KotTicketType.KotKitchen, "KOT-002", _timeProvider));
+    }
+
+    [Fact]
+    public void Domain_Bill_OverSettlement_RejectsPaymentExceedingBalanceDue()
+    {
+        // Arrange
+        var bill = new Bill(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            Guid.NewGuid(),
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            "INV-999",
+            1,
+            "T-01",
+            "Waiter 1",
+            new Money(100m),
+            new Money(0m),
+            _timeProvider,
+            discountPercentage: 0m,
+            foodCgstPercent: 0m,
+            foodSgstPercent: 0m
+        );
+
+        // Bill total is ₹100.
+        var overpayment = new Payment(
+            Guid.NewGuid(),
+            bill.Id,
+            _tenantId,
+            _branchId,
+            PaymentMethod.Cash,
+            new Money(150m),
+            "CASH_REF",
+            "CASHIER_01",
+            _timeProvider
+        );
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => bill.AddPayment(overpayment, _timeProvider, allowOverpayment: false));
+    }
+
+    [Fact]
+    public void Domain_Bill_TenantOrBranchMismatch_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var bill = new Bill(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            Guid.NewGuid(),
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            "INV-998",
+            1,
+            "T-01",
+            "Waiter 1",
+            new Money(100m),
+            new Money(0m),
+            _timeProvider
+        );
+
+        var badTenantPayment = new Payment(
+            Guid.NewGuid(),
+            bill.Id,
+            Guid.NewGuid(), // different tenant
+            _branchId,
+            PaymentMethod.Cash,
+            new Money(100m),
+            "CASH_REF",
+            "CASHIER_01",
+            _timeProvider
+        );
+
+        Assert.Throws<InvalidOperationException>(() => bill.AddPayment(badTenantPayment, _timeProvider));
     }
 
     [Fact]
@@ -155,6 +331,7 @@ public class PosVerticalSliceTests
         Guid itemFoodId = Guid.NewGuid();
         Guid itemBarId = Guid.NewGuid();
 
+        // 2 * 350 = 700 (Food) -> 5% Tax = 35 -> Total Food 735
         _uiController.AddItemToCart(
             itemFoodId,
             "101",
@@ -165,6 +342,7 @@ public class PosVerticalSliceTests
             unitPrice: 350m
         );
 
+        // 1 * 220 = 220 (Liquor) -> 0% Tax = 220
         _uiController.AddItemToCart(
             itemBarId,
             "501",
@@ -176,11 +354,12 @@ public class PosVerticalSliceTests
             unitVolumeMl: 650
         );
 
-        // Split Payment: ₹500 Cash + ₹420 UPI
+        // SubTotal: 920. Food tax (2.5% CGST + 2.5% SGST on 700 = 35). Total = 955.
+        // Split Payment: ₹500 Cash + ₹455 UPI
         var payments = new List<ProcessPaymentRequest>
         {
             new(PaymentMethod.Cash, 500m, "CASH_REF_01"),
-            new(PaymentMethod.UpiQr, 420m, "UPI_RRN_9988776655")
+            new(PaymentMethod.UpiQr, 455m, "UPI_RRN_9988776655")
         };
 
         // Act 1: Process workflow offline
@@ -190,6 +369,7 @@ public class PosVerticalSliceTests
         Assert.True(result.OfflineSaved);
         Assert.False(result.CloudSynced, "Should NOT sync to cloud while offline.");
         Assert.Equal(PaymentStatus.Paid, result.PaymentStatus);
+        Assert.Equal(955m, result.GrandTotal.Amount);
         Assert.Equal(2, result.KotIds.Count); // 1 Kitchen KOT + 1 Bar BOT
         Assert.Equal(2, result.StockMovementIds.Count);
         Assert.Single(result.OutboxEventIds);
@@ -244,6 +424,7 @@ public class PosVerticalSliceTests
         // Arrange
         Guid otherTenantId = Guid.NewGuid();
 
+        // 200 + 5% tax = 210
         _uiController.AddItemToCart(
             Guid.NewGuid(),
             "201",
@@ -256,7 +437,7 @@ public class PosVerticalSliceTests
 
         var payments = new List<ProcessPaymentRequest>
         {
-            new(PaymentMethod.Cash, 200m, "CASH_REF_02")
+            new(PaymentMethod.Cash, 210m, "CASH_REF_02")
         };
 
         var result = await _uiController.ProcessCheckoutAndSettleAsync(payments);
