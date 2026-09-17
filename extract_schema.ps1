@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$MdbPath = "C:\xampp\htdocs\AntigravityProjects\YashdeepHotelMS\RSS26\dinurss.mdb",
     
-    [string]$Password = "dinu",
+    [string]$Password = $env:MDB_PASSWORD,
     
     [string]$OutputDir = ".\extracted_schema_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 )
@@ -147,7 +147,7 @@ try {
 # Database Extraction Summary
 
 **Source:** $MdbPath
-**Password:** $Password
+**Password:** <PROTECTED_PASSWORD>
 **Extracted:** $(Get-Date)
 **Tables found:** $($userTables.Count)
 
@@ -180,6 +180,6 @@ try {
     Write-Host "   https://www.microsoft.com/en-us/download/details.aspx?id=54920"
     Write-Host "2. Run this script in 32-bit PowerShell:"
     Write-Host "   C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
-    Write-Host "3. Verify password is correct: $Password"
+    Write-Host "3. Verify password is correct if database is password-protected"
     exit 1
 }

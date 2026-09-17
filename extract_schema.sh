@@ -5,12 +5,12 @@
 # Usage: 
 #   1. Copy dinurss.mdb to Linux/WSL2
 #   2. chmod +x extract_schema.sh
-#   3. ./extract_schema.sh dinurss.mdb
+#   3. MDB_PASSWORD="your_password" ./extract_schema.sh dinurss.mdb
 
 set -euo pipefail
 
 MDB_FILE="${1:-dinurss.mdb}"
-PASSWORD="dinu"
+PASSWORD="${MDB_PASSWORD:-${2:-}}"
 OUTPUT_DIR="extracted_schema_$(date +%Y%m%d_%H%M%S)"
 
 if [[ ! -f "$MDB_FILE" ]]; then
@@ -58,7 +58,7 @@ cat > "$OUTPUT_DIR/README.md" << EOF
 # Database Extraction Summary
 
 **Source:** $MDB_FILE
-**Password:** $PASSWORD
+**Password:** <PROTECTED_PASSWORD>
 **Extracted:** $(date)
 **Tables found:** $TABLE_COUNT
 
