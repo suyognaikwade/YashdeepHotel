@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\Domain\Yashdeep.Domain\Yashdeep.Domain.csproj" />
     <ProjectReference Include="..\..\src\Application\Yashdeep.Application\Yashdeep.Application.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Yashdeep.Infrastructure\Yashdeep.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Persistence\Yashdeep.Persistence.Local\Yashdeep.Persistence.Local.csproj" />
   </ItemGroup>
 
 </Project>

@@ -22,7 +22,7 @@ public class CapabilityIntegrationTests
         _publicKeyHex = Convert.ToHexString(keyPair.PublicKey.GetEncoded()).ToLowerInvariant();
     }
 
-    private class TestTenantContext : ITenantContext
+    private class TestTenantContext : IEntitlementTenantContext
     {
         public string? TenantId { get; set; }
     }

@@ -2,6 +2,7 @@ namespace Yashdeep.Infrastructure.Connectivity;
 
 using Yashdeep.Application.Connectivity;
 using Yashdeep.Domain.Connectivity;
+using Yashdeep.Shared.Connectivity;
 
 /// <summary>
 /// Evaluates device connectivity state according to mandatory product rules, configurable warning thresholds, and configurable soft grace periods.

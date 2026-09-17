@@ -1,6 +1,6 @@
 namespace Yashdeep.Application.Entitlements;
 
-public interface ITenantContext
+public interface IEntitlementTenantContext
 {
     string? TenantId { get; }
 }

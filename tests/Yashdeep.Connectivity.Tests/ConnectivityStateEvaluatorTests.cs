@@ -6,6 +6,7 @@ using Xunit;
 using Yashdeep.Application.Connectivity;
 using Yashdeep.Domain.Connectivity;
 using Yashdeep.Infrastructure.Connectivity;
+using Yashdeep.Shared.Connectivity;
 
 public class ConnectivityStateEvaluatorTests
 {
