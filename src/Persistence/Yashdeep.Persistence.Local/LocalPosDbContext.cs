@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Yashdeep.Application.Common.Interfaces;
 using Yashdeep.Domain.Entities.Audit;
 using Yashdeep.Domain.Entities.Billing;
 using Yashdeep.Domain.Entities.Inventory;
 using Yashdeep.Domain.Entities.Orders;
-using Yashdeep.Domain.Entities.Sync;
+using Yashdeep.Domain.Outbox;
 using Yashdeep.Domain.ValueObjects;
 
 namespace Yashdeep.Persistence.Local;
@@ -12,6 +13,9 @@ namespace Yashdeep.Persistence.Local;
 public class LocalPosDbContext : DbContext
 {
     private readonly Guid? _currentTenantId;
+    private readonly ITenantContext? _tenantContext;
+
+    public Guid CurrentTenantId => _tenantContext?.TenantId ?? _currentTenantId ?? Guid.Empty;
 
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
@@ -22,12 +26,12 @@ public class LocalPosDbContext : DbContext
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-    public DbSet<Yashdeep.Domain.Outbox.OutboxMessage> SyncOutboxMessages => Set<Yashdeep.Domain.Outbox.OutboxMessage>();
 
-    public LocalPosDbContext(DbContextOptions<LocalPosDbContext> options, Guid? currentTenantId = null)
+    public LocalPosDbContext(DbContextOptions<LocalPosDbContext> options, Guid? currentTenantId = null, ITenantContext? tenantContext = null)
         : base(options)
     {
         _currentTenantId = currentTenantId;
+        _tenantContext = tenantContext;
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -353,19 +357,16 @@ public class LocalPosDbContext : DbContext
             builder.HasIndex(e => new { e.DeviceId, e.SequenceNumber }).IsUnique();
             builder.HasIndex(e => new { e.TenantId, e.DeviceId, e.Status });
             builder.HasIndex(e => new { e.Status, e.CreatedUtc });
+
+            builder.HasQueryFilter(e => CurrentTenantId == Guid.Empty || e.TenantId == CurrentTenantId);
         });
 
-        // Multi-tenant Query Filter
-        if (_currentTenantId.HasValue && _currentTenantId != Guid.Empty)
-        {
-            modelBuilder.Entity<Order>().HasQueryFilter(o => o.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<KotRecord>().HasQueryFilter(k => k.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<Bill>().HasQueryFilter(b => b.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<Payment>().HasQueryFilter(p => p.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<StockMovement>().HasQueryFilter(s => s.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<AuditEvent>().HasQueryFilter(a => a.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<OutboxMessage>().HasQueryFilter(m => m.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<Yashdeep.Domain.Outbox.OutboxMessage>().HasQueryFilter(m => m.TenantId == _currentTenantId.Value);
-        }
+        // Dynamic Multi-tenant Query Filter (supports context switching across tests and restarts)
+        modelBuilder.Entity<Order>().HasQueryFilter(o => CurrentTenantId == Guid.Empty || o.TenantId == CurrentTenantId);
+        modelBuilder.Entity<KotRecord>().HasQueryFilter(k => CurrentTenantId == Guid.Empty || k.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Bill>().HasQueryFilter(b => CurrentTenantId == Guid.Empty || b.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Payment>().HasQueryFilter(p => CurrentTenantId == Guid.Empty || p.TenantId == CurrentTenantId);
+        modelBuilder.Entity<StockMovement>().HasQueryFilter(s => CurrentTenantId == Guid.Empty || s.TenantId == CurrentTenantId);
+        modelBuilder.Entity<AuditEvent>().HasQueryFilter(a => CurrentTenantId == Guid.Empty || a.TenantId == CurrentTenantId);
     }
 }
