@@ -1,4 +1,5 @@
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Domain.Entities.Inventory;
 
@@ -31,9 +32,19 @@ public class StockMovement
         string itemName,
         StockMovementType movementType,
         decimal quantity,
+        IDateTimeProvider timeProvider,
         int? volumeMlDeducted = null,
-        Guid? referenceTransactionId = null)
+        Guid? referenceTransactionId = null,
+        bool allowNegativeMovement = false)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (tenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        if (branchId == Guid.Empty) throw new ArgumentException("BranchId is required.", nameof(branchId));
+        if (inventoryItemId == Guid.Empty) throw new ArgumentException("InventoryItemId is required.", nameof(inventoryItemId));
+
+        if (!allowNegativeMovement && quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero for stock movements.");
+
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         TenantId = tenantId;
         BranchId = branchId;
@@ -44,6 +55,6 @@ public class StockMovement
         Quantity = quantity;
         VolumeMlDeducted = volumeMlDeducted;
         ReferenceTransactionId = referenceTransactionId;
-        TimestampUtc = DateTime.UtcNow;
+        TimestampUtc = timeProvider.UtcNow;
     }
 }

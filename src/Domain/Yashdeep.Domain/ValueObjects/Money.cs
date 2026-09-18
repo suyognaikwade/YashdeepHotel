@@ -1,7 +1,19 @@
 namespace Yashdeep.Domain.ValueObjects;
 
-public readonly record struct Money(decimal Amount, string Currency = "INR")
+public readonly record struct Money
 {
+    public decimal Amount { get; }
+    public string Currency { get; }
+
+    public Money(decimal amount, string currency = "INR")
+    {
+        if (amount < 0)
+            throw new ArgumentOutOfRangeException(nameof(amount), "Money amount cannot be negative.");
+
+        Amount = amount;
+        Currency = currency ?? "INR";
+    }
+
     public static Money Zero => new(0m);
 
     public static Money operator +(Money a, Money b)
