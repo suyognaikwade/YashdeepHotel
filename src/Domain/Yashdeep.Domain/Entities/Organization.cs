@@ -1,24 +1,26 @@
+using System;
+using System.Collections.Generic;
+using Yashdeep.Domain.Common;
+
 namespace Yashdeep.Domain.Entities;
 
-public class Organization
+public class Organization : ITenantScopedEntity, IAuditableEntity, ISoftDeletableEntity, IConcurrencyAwareEntity
 {
-    public Guid OrganizationId { get; private set; }
-    public Guid TenantId { get; private set; }
-    public string LegalName { get; private set; } = string.Empty;
-    public string ExciseLicenseNumber { get; private set; } = string.Empty;
-    public DateTime CreatedAtUtc { get; private set; } = DateTime.UtcNow;
+    public Guid OrganizationId { get; set; }
+    public Guid TenantId { get; set; }
 
-    private Organization() { }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? LegalEntityName { get; set; }
+    public string? TaxRegistrationNumber { get; set; }
+    public string? StateExciseLicenseNo { get; set; }
 
-    public Organization(Guid organizationId, Guid tenantId, string legalName, string exciseLicenseNumber = "")
-    {
-        if (tenantId == Guid.Empty)
-            throw new ArgumentException("TenantId cannot be empty.", nameof(tenantId));
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
+    public uint ConcurrencyToken { get; set; }
 
-        OrganizationId = organizationId == Guid.Empty ? Guid.NewGuid() : organizationId;
-        TenantId = tenantId;
-        LegalName = legalName ?? throw new ArgumentNullException(nameof(legalName));
-        ExciseLicenseNumber = exciseLicenseNumber ?? string.Empty;
-        CreatedAtUtc = DateTime.UtcNow;
-    }
+    public Tenant? Tenant { get; set; }
+    public ICollection<Branch> Branches { get; set; } = new List<Branch>();
 }
