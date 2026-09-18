@@ -1,7 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Yashdeep.Domain.Orders;
+using Yashdeep.Domain.Entities.Orders;
 using Yashdeep.Domain.Outbox;
+using Yashdeep.Domain.ValueObjects;
 using Yashdeep.Persistence.Local;
 using Yashdeep.Persistence.Local.Repositories;
 using Yashdeep.Shared.Events;
@@ -47,6 +48,7 @@ public class OutboxAtomicityTests : IDisposable
         // Arrange
         var tenantId = Guid.NewGuid();
         var branchId = Guid.NewGuid();
+        var locationId = Guid.NewGuid();
         var deviceId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
@@ -58,7 +60,7 @@ public class OutboxAtomicityTests : IDisposable
         // Act
         await using (var transaction = await unitOfWork.BeginTransactionAsync())
         {
-            var order = new LocalOrder(orderId, tenantId, branchId, "ORD-001", 500.00m);
+            var order = new Order(orderId, tenantId, branchId, locationId, "T-1", SectionTier.Ac, OrderType.DineIn, "ORD-001", DateOnly.FromDateTime(DateTime.UtcNow), Guid.NewGuid(), "Captain");
             dbContext.Orders.Add(order);
 
             var domainEvent = new OrderPlacedEvent
@@ -82,7 +84,7 @@ public class OutboxAtomicityTests : IDisposable
         // Assert - Verify using a fresh DbContext instance
         using var verifyContext = new LocalPosDbContext(_options);
         var persistedOrder = await verifyContext.Orders.FindAsync(orderId);
-        var persistedOutbox = await verifyContext.OutboxMessages.FindAsync(eventId);
+        var persistedOutbox = await verifyContext.SyncOutboxMessages.FindAsync(eventId);
 
         Assert.Null(persistedOrder);
         Assert.Null(persistedOutbox);
@@ -94,6 +96,7 @@ public class OutboxAtomicityTests : IDisposable
         // Arrange
         var tenantId = Guid.NewGuid();
         var branchId = Guid.NewGuid();
+        var locationId = Guid.NewGuid();
         var deviceId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
@@ -105,7 +108,7 @@ public class OutboxAtomicityTests : IDisposable
         // Act
         await using (var transaction = await unitOfWork.BeginTransactionAsync())
         {
-            var order = new LocalOrder(orderId, tenantId, branchId, "ORD-002", 750.00m);
+            var order = new Order(orderId, tenantId, branchId, locationId, "T-1", SectionTier.Ac, OrderType.DineIn, "ORD-002", DateOnly.FromDateTime(DateTime.UtcNow), Guid.NewGuid(), "Captain");
             dbContext.Orders.Add(order);
 
             var domainEvent = new OrderPlacedEvent
@@ -129,7 +132,7 @@ public class OutboxAtomicityTests : IDisposable
         // Assert - Verify using a fresh DbContext instance
         using var verifyContext = new LocalPosDbContext(_options);
         var persistedOrder = await verifyContext.Orders.FindAsync(orderId);
-        var persistedOutbox = await verifyContext.OutboxMessages.FindAsync(eventId);
+        var persistedOutbox = await verifyContext.SyncOutboxMessages.FindAsync(eventId);
 
         Assert.NotNull(persistedOrder);
         Assert.Equal("ORD-002", persistedOrder.OrderNumber);

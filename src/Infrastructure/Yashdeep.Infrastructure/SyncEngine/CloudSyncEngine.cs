@@ -48,7 +48,6 @@ public class PosCloudInboxProcessor
 
 public class CloudSyncEngine : ICloudSyncEngine
 {
-    private readonly IPosOutboxRepository _outboxRepository;
     private readonly PosCloudInboxProcessor _inboxProcessor;
     private bool _isOnline = true;
 

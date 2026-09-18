@@ -4,13 +4,19 @@ namespace Yashdeep.Domain.Entities.Billing;
 
 public class BillTaxLine
 {
-    public string TaxName { get; }
-    public decimal RatePercentage { get; }
-    public Money TaxAmount { get; }
+    public string TaxName { get; private set; }
+    public decimal RatePercentage { get; private set; }
+    public Money TaxAmount { get; private set; }
+
+    private BillTaxLine()
+    {
+        TaxName = string.Empty;
+        TaxAmount = Money.Zero;
+    }
 
     public BillTaxLine(string taxName, decimal ratePercentage, Money taxAmount)
     {
-        TaxName = taxName;
+        TaxName = taxName ?? string.Empty;
         RatePercentage = ratePercentage;
         TaxAmount = taxAmount;
     }
