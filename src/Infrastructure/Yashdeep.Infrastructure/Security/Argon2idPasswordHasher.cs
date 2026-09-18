@@ -1,53 +1,88 @@
+using System;
 using System.Security.Cryptography;
 using System.Text;
-using Isopoh.Cryptography.Argon2;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
 using Yashdeep.Application.Interfaces;
-using Yashdeep.Domain.Entities;
 
 namespace Yashdeep.Infrastructure.Security;
 
-/// <summary>
-/// Production password hasher implementing Argon2id as required by IMPLEMENTATION_CONTRACT.md section 12.1 and SECURITY_ARCHITECTURE.md section 2.1.
-/// Explicitly rejects bcrypt, PBKDF2, or fallback hashes.
-/// </summary>
 public class Argon2idPasswordHasher : IPasswordHasher
 {
-    public string HashPassword(User user, string password)
+    private const int MemoryKb = 65536; // 64 MB
+    private const int Iterations = 3;
+    private const int Parallelism = 4;
+    private const int SaltSize = 16;
+    private const int HashSize = 32;
+
+    public string HashPassword(string password)
     {
-        ArgumentNullException.ThrowIfNull(user);
         if (string.IsNullOrEmpty(password))
-            throw new ArgumentException("Password cannot be null or empty.", nameof(password));
-
-        byte[] salt = RandomNumberGenerator.GetBytes(16);
-        var config = new Argon2Config
         {
-            Type = Argon2Type.HybridAddressing, // Argon2id (hybrid of Argon2d and Argon2i)
-            MemoryCost = 65536, // 64MB
-            TimeCost = 3,
-            Lanes = 4,
-            Threads = 4,
-            Password = Encoding.UTF8.GetBytes(password),
-            Salt = salt
-        };
+            throw new ArgumentException("Password cannot be empty.", nameof(password));
+        }
 
-        using var argon2 = new Argon2(config);
-        using var hash = argon2.Hash();
-        return config.EncodeString(hash.Buffer);
+        byte[] salt = new byte[SaltSize];
+        RandomNumberGenerator.Fill(salt);
+
+        byte[] hash = GenerateHash(password, salt, MemoryKb, Iterations, Parallelism, HashSize);
+
+        string saltBase64 = Convert.ToBase64String(salt);
+        string hashBase64 = Convert.ToBase64String(hash);
+
+        return $"$argon2id$v=19$m={MemoryKb},t={Iterations},p={Parallelism}${saltBase64}${hashBase64}";
     }
 
-    public bool VerifyPassword(User user, string hashedPassword, string providedPassword)
+    public bool VerifyPassword(string password, string hashedPassword)
     {
-        ArgumentNullException.ThrowIfNull(user);
-        if (string.IsNullOrEmpty(hashedPassword) || string.IsNullOrEmpty(providedPassword))
+        if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(hashedPassword))
+        {
             return false;
+        }
+
+        var parts = hashedPassword.Split('$');
+        if (parts.Length != 6 || parts[1] != "argon2id")
+        {
+            return false;
+        }
 
         try
         {
-            return Argon2.Verify(hashedPassword, providedPassword);
+            var paramParts = parts[3].Split(',');
+            int memoryKb = int.Parse(paramParts[0].Substring(2));
+            int iterations = int.Parse(paramParts[1].Substring(2));
+            int parallelism = int.Parse(paramParts[2].Substring(2));
+
+            byte[] salt = Convert.FromBase64String(parts[4]);
+            byte[] expectedHash = Convert.FromBase64String(parts[5]);
+
+            byte[] actualHash = GenerateHash(password, salt, memoryKb, iterations, parallelism, expectedHash.Length);
+
+            return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
         }
-        catch
+        catch (Exception)
         {
             return false;
         }
+    }
+
+    private static byte[] GenerateHash(string password, byte[] salt, int memoryKb, int iterations, int parallelism, int outputLength)
+    {
+        byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
+
+        var builder = new Argon2Parameters.Builder(Argon2Parameters.Argon2id)
+            .WithVersion(19) // Argon2 v1.3 is version 0x13 (19 in decimal)
+            .WithMemoryAsKB(memoryKb)
+            .WithIterations(iterations)
+            .WithParallelism(parallelism)
+            .WithSalt(salt);
+
+        var generator = new Argon2BytesGenerator();
+        generator.Init(builder.Build());
+
+        byte[] result = new byte[outputLength];
+        generator.GenerateBytes(passwordBytes, result, 0, result.Length);
+
+        return result;
     }
 }

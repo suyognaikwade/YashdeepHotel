@@ -1,73 +1,49 @@
 using Microsoft.EntityFrameworkCore;
-using Yashdeep.Application.Interfaces;
-using Yashdeep.Domain.Entities;
+using Yashdeep.Application.Common.Interfaces;
+using Yashdeep.Domain.Sync;
 
-namespace Yashdeep.Persistence.Cloud;
-
-public class CloudDbContext : DbContext
+namespace Yashdeep.Persistence.Cloud
 {
-    private readonly ITenantContext _tenantContext;
-
-    public DbSet<Tenant> Tenants => Set<Tenant>();
-    public DbSet<Organization> Organizations => Set<Organization>();
-    public DbSet<User> Users => Set<User>();
-    public DbSet<Role> Roles => Set<Role>();
-    public DbSet<Permission> Permissions => Set<Permission>();
-    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-
-    public CloudDbContext(DbContextOptions<CloudDbContext> options, ITenantContext tenantContext)
-        : base(options)
+    public class CloudDbContext : DbContext
     {
-        _tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
-    }
+        private readonly ITenantContext? _tenantContext;
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
+        private Guid CurrentTenantId => _tenantContext?.TenantId ?? Guid.Empty;
 
-        modelBuilder.Entity<Tenant>(builder =>
+        public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
+        public CloudDbContext(DbContextOptions<CloudDbContext> options, ITenantContext? tenantContext = null)
+            : base(options)
         {
-            builder.HasKey(t => t.TenantId);
-            builder.Property(t => t.LegalName).IsRequired().HasMaxLength(200);
-            builder.Property(t => t.TradeName).IsRequired().HasMaxLength(200);
-        });
+            _tenantContext = tenantContext;
+        }
 
-        modelBuilder.Entity<Organization>(builder =>
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            builder.HasKey(o => o.OrganizationId);
-            builder.Property(o => o.LegalName).IsRequired().HasMaxLength(200);
-            builder.HasQueryFilter(o => o.TenantId == _tenantContext.TenantId);
-        });
+            base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<User>(builder =>
-        {
-            builder.HasKey(u => u.UserId);
-            builder.Property(u => u.Username).IsRequired().HasMaxLength(100);
-            builder.HasIndex(u => new { u.TenantId, u.Username }).IsUnique();
-            builder.HasMany(u => u.Roles);
-            builder.HasMany(u => u.RefreshTokens);
-            builder.HasQueryFilter(u => u.TenantId == _tenantContext.TenantId);
-        });
+            modelBuilder.Entity<InboxMessage>(entity =>
+            {
+                entity.ToTable("InboxMessages");
 
-        modelBuilder.Entity<Role>(builder =>
-        {
-            builder.HasKey(r => r.RoleId);
-            builder.Property(r => r.Name).IsRequired().HasMaxLength(100);
-            builder.HasMany(r => r.Permissions);
-            builder.HasQueryFilter(r => r.TenantId == _tenantContext.TenantId);
-        });
+                entity.HasKey(e => new { e.TenantId, e.EventId });
 
-        modelBuilder.Entity<Permission>(builder =>
-        {
-            builder.HasKey(p => p.PermissionId);
-            builder.Property(p => p.Code).IsRequired().HasMaxLength(100);
-        });
+                entity.Property(e => e.EventId).IsRequired();
+                entity.Property(e => e.TenantId).IsRequired();
+                entity.Property(e => e.BranchId).IsRequired();
+                entity.Property(e => e.DeviceId).IsRequired();
+                entity.Property(e => e.EventType).HasMaxLength(128).IsRequired();
+                entity.Property(e => e.AggregateType).HasMaxLength(128).IsRequired();
+                entity.Property(e => e.AggregateId).IsRequired();
+                entity.Property(e => e.SequenceNumber).IsRequired();
+                entity.Property(e => e.PayloadHash).HasMaxLength(64).IsRequired();
+                entity.Property(e => e.Status).IsRequired();
+                entity.Property(e => e.ReceivedAtUtc).IsRequired();
 
-        modelBuilder.Entity<RefreshToken>(builder =>
-        {
-            builder.HasKey(rt => rt.RefreshTokenId);
-            builder.Property(rt => rt.TokenHash).IsRequired();
-            builder.HasQueryFilter(rt => rt.TenantId == _tenantContext.TenantId);
-        });
+                entity.HasIndex(e => new { e.TenantId, e.DeviceId, e.SequenceNumber });
+
+                entity.HasQueryFilter(e => CurrentTenantId != Guid.Empty && e.TenantId == CurrentTenantId);
+            });
+        }
     }
 }

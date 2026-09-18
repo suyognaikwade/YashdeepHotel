@@ -1,37 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-
     <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentAssertions" Version="8.10.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0" />
-    <PackageReference Include="Moq" Version="4.20.72" />
-    <PackageReference Include="xunit" Version="2.4.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Domain\Yashdeep.Domain\Yashdeep.Domain.csproj" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Server\Yashdeep.Server.Api\Yashdeep.Server.Api.csproj" />
     <ProjectReference Include="..\..\src\Application\Yashdeep.Application\Yashdeep.Application.csproj" />
+    <ProjectReference Include="..\..\src\Domain\Yashdeep.Domain\Yashdeep.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Shared\Yashdeep.Shared\Yashdeep.Shared.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Yashdeep.Infrastructure\Yashdeep.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Persistence\Yashdeep.Persistence.Cloud\Yashdeep.Persistence.Cloud.csproj" />
+    <ProjectReference Include="..\..\src\Persistence\Yashdeep.Persistence.Local\Yashdeep.Persistence.Local.csproj" />
+    <ProjectReference Include="..\..\src\SyncEngine\Yashdeep.SyncEngine\Yashdeep.SyncEngine.csproj" />
+    <ProjectReference Include="..\..\src\Client\Yashdeep.Client.Blazor\Yashdeep.Client.Blazor.csproj" />
+    <ProjectReference Include="..\..\src\Client\Yashdeep.Client.Maui\Yashdeep.Client.Maui.csproj" />
   </ItemGroup>
 
 </Project>

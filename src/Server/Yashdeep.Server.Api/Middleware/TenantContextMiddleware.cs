@@ -1,43 +1,88 @@
-using System.Security.Claims;
-using Yashdeep.Application.Interfaces;
+using System;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Yashdeep.Shared.Security;
 
 namespace Yashdeep.Server.Api.Middleware;
 
 public class TenantContextMiddleware
 {
     private readonly RequestDelegate _next;
+    public const string TenantHeaderName = "X-Tenant-Id";
+    public const string BranchHeaderName = "X-Branch-Id";
 
     public TenantContextMiddleware(RequestDelegate next)
     {
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext httpContext, ITenantContext tenantContext)
+    public async Task InvokeAsync(HttpContext context)
     {
-        if (httpContext.User.Identity?.IsAuthenticated == true)
+        var deviceTokenService = context.RequestServices.GetService<IDeviceTokenService>();
+
+        string? authHeader = context.Request.Headers["Authorization"];
+        if (!string.IsNullOrWhiteSpace(authHeader))
         {
-            var tenantClaim = httpContext.User.FindFirst("tenant_id")?.Value;
-            var orgClaim = httpContext.User.FindFirst("org_id")?.Value;
-            var userClaim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            string token = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? authHeader.Substring(7).Trim()
+                : authHeader.StartsWith("DeviceToken ", StringComparison.OrdinalIgnoreCase)
+                    ? authHeader.Substring(12).Trim()
+                    : authHeader.Trim();
 
-            Guid.TryParse(tenantClaim, out var tenantId);
-            Guid.TryParse(orgClaim, out var orgId);
-            Guid.TryParse(userClaim, out var userId);
-
-            if (tenantId != Guid.Empty && userId != Guid.Empty)
+            if (deviceTokenService != null)
             {
-                tenantContext.SetContext(tenantId, orgId, userId);
+                var validationResult = deviceTokenService.ValidateToken(token);
+                if (validationResult.IsValid && validationResult.Payload != null)
+                {
+                    context.Items["IsAuthenticated"] = true;
+                    context.Items["TenantId"] = validationResult.Payload.TenantId;
+                    context.Items["BranchId"] = validationResult.Payload.BranchId;
+                    context.Items["DeviceTokenPayload"] = validationResult.Payload;
+
+                    // Header manipulation tamper detection
+                    if (context.Request.Headers.TryGetValue(TenantHeaderName, out var headerTenantStr) &&
+                        Guid.TryParse(headerTenantStr, out var headerTenantId) &&
+                        headerTenantId != Guid.Empty &&
+                        headerTenantId != validationResult.Payload.TenantId)
+                    {
+                        context.Items["TenantMismatch"] = true;
+                    }
+
+                    if (context.Request.Headers.TryGetValue(BranchHeaderName, out var headerBranchStr) &&
+                        Guid.TryParse(headerBranchStr, out var headerBranchId) &&
+                        headerBranchId != Guid.Empty &&
+                        headerBranchId != validationResult.Payload.BranchId)
+                    {
+                        context.Items["BranchMismatch"] = true;
+                    }
+
+                    await _next(context);
+                    return;
+                }
+                else
+                {
+                    context.Items["IsAuthenticated"] = false;
+                    context.Items["TokenValidationError"] = validationResult.ErrorReason;
+                }
             }
         }
-        else
+
+        // Unauthenticated request fallback from headers
+        context.Items["IsAuthenticated"] = false;
+
+        if (context.Request.Headers.TryGetValue(TenantHeaderName, out var unauthTenantStr) &&
+            Guid.TryParse(unauthTenantStr, out var unauthTenantId))
         {
-            if (httpContext.Request.Headers.TryGetValue("X-Tenant-Id", out var headerTenant) &&
-                Guid.TryParse(headerTenant, out var tenantId))
-            {
-                tenantContext.SetContext(tenantId, Guid.Empty, Guid.Empty);
-            }
+            context.Items["TenantId"] = unauthTenantId;
         }
 
-        await _next(httpContext);
+        if (context.Request.Headers.TryGetValue(BranchHeaderName, out var unauthBranchStr) &&
+            Guid.TryParse(unauthBranchStr, out var unauthBranchId))
+        {
+            context.Items["BranchId"] = unauthBranchId;
+        }
+
+        await _next(context);
     }
 }
