@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Application\Yashdeep.Application\Yashdeep.Application.csproj" />
+    <ProjectReference Include="..\..\Domain\Yashdeep.Domain\Yashdeep.Domain.csproj" />
+    <ProjectReference Include="..\..\Shared\Yashdeep.Shared\Yashdeep.Shared.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\Yashdeep.Infrastructure\Yashdeep.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Persistence\Yashdeep.Persistence.Local\Yashdeep.Persistence.Local.csproj" />
+  </ItemGroup>
+
+</Project>
