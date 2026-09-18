@@ -71,9 +71,9 @@ public sealed class Ed25519EntitlementTokenService : IEntitlementTokenValidator,
             return false;
         }
 
-        string keyToUse = !string.IsNullOrWhiteSpace(envelope.PublicKeyHex)
-            ? envelope.PublicKeyHex
-            : _defaultPublicKeyHex ?? string.Empty;
+        string keyToUse = !string.IsNullOrWhiteSpace(_defaultPublicKeyHex)
+            ? _defaultPublicKeyHex
+            : envelope.PublicKeyHex;
 
         return VerifySignature(envelope, keyToUse);
     }

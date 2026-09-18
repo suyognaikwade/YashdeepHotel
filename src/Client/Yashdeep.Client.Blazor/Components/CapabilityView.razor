@@ -1,0 +1,38 @@
+@using Yashdeep.Application.Entitlements
+@using Yashdeep.Shared.Capabilities
+@inject IUiVisibilityEvaluator VisibilityEvaluator
+
+@if (IsVisible)
+{
+    @ChildContent
+}
+else if (FallbackContent != null)
+{
+    @FallbackContent
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string CapabilityId { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? FallbackContent { get; set; }
+
+    private bool IsVisible { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(CapabilityId))
+        {
+            var capId = new CapabilityId(CapabilityId);
+            IsVisible = VisibilityEvaluator.IsFeatureVisible(capId);
+        }
+        else
+        {
+            IsVisible = false;
+        }
+    }
+}

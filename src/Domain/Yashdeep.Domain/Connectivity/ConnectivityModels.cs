@@ -1,3 +1,5 @@
+using Yashdeep.Shared.Connectivity;
+
 namespace Yashdeep.Domain.Connectivity;
 
 /// <summary>
@@ -21,6 +23,7 @@ public class ConnectivityEvaluationContext
 {
     public string DeviceId { get; set; } = string.Empty;
     public DateTime CurrentLocalTimeUtc { get; set; }
+    public DateTime? ServerTimeUtc { get; set; }
     public long CurrentMonotonicTicks { get; set; }
     public bool IsOnline { get; set; }
     public bool LastSyncFailed { get; set; }

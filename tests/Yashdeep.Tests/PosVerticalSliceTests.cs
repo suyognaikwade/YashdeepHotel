@@ -1,25 +1,34 @@
 namespace Yashdeep.Tests;
 
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Yashdeep.Application.Pos.DTOs;
 using Yashdeep.Application.Pos.UI;
 using Yashdeep.Application.Pos.Workflows;
+using Yashdeep.Domain.Entities.Audit;
 using Yashdeep.Domain.Entities.Billing;
+using Yashdeep.Domain.Entities.Inventory;
 using Yashdeep.Domain.Entities.Orders;
-using Yashdeep.Domain.Entities.Sync;
+using Yashdeep.Domain.Outbox;
 using Yashdeep.Domain.ValueObjects;
-using Yashdeep.Infrastructure.Persistence;
 using Yashdeep.Infrastructure.Printing;
 using Yashdeep.Infrastructure.SyncEngine;
+using Yashdeep.Persistence.Local;
+using Yashdeep.Persistence.Local.Persistence;
+using Yashdeep.Shared.Time;
 using Xunit;
 
-public class PosVerticalSliceTests
+public class PosVerticalSliceTests : IDisposable
 {
-    private readonly LocalPosMemoryDbContext _dbContext;
-    private readonly LocalPosUnitOfWork _unitOfWork;
+    private readonly SqliteConnection _sqliteConnection;
+    private readonly DbContextOptions<LocalPosDbContext> _dbContextOptions;
+    private readonly LocalPosDbContext _dbContext;
+    private readonly SqlitePosUnitOfWork _unitOfWork;
     private readonly TestPrinterService _printerService;
-    private readonly CloudInboxProcessor _inboxProcessor;
+    private readonly PosCloudInboxProcessor _inboxProcessor;
     private readonly CloudSyncEngine _syncEngine;
+    private readonly TestDateTimeProvider _timeProvider;
     private readonly CompletePosWorkflowUseCase _workflowUseCase;
     private readonly PosTerminalUiController _uiController;
 
@@ -30,12 +39,23 @@ public class PosVerticalSliceTests
 
     public PosVerticalSliceTests()
     {
-        _dbContext = new LocalPosMemoryDbContext();
-        _unitOfWork = new LocalPosUnitOfWork(_dbContext);
+        // Open an in-memory SQLite connection so the database stays alive across DbContext instances during tests
+        _sqliteConnection = new SqliteConnection("Data Source=:memory:");
+        _sqliteConnection.Open();
+
+        _dbContextOptions = new DbContextOptionsBuilder<LocalPosDbContext>()
+            .UseSqlite(_sqliteConnection)
+            .Options;
+
+        _dbContext = new LocalPosDbContext(_dbContextOptions);
+        _dbContext.Database.EnsureCreated();
+
+        _unitOfWork = new SqlitePosUnitOfWork(_dbContext);
         _printerService = new TestPrinterService();
-        _inboxProcessor = new CloudInboxProcessor();
+        _inboxProcessor = new PosCloudInboxProcessor();
         _syncEngine = new CloudSyncEngine(_unitOfWork.Outbox, _inboxProcessor);
-        _workflowUseCase = new CompletePosWorkflowUseCase(_unitOfWork, _printerService, _syncEngine);
+        _timeProvider = new TestDateTimeProvider(new DateTime(2025, 5, 1, 10, 0, 0, DateTimeKind.Utc));
+        _workflowUseCase = new CompletePosWorkflowUseCase(_unitOfWork, _printerService, _syncEngine, _timeProvider);
 
         _uiController = new PosTerminalUiController(_workflowUseCase)
         {
@@ -45,12 +65,19 @@ public class PosVerticalSliceTests
             DeviceId = _deviceId,
             ActiveTableNumber = "T-12",
             ActiveSection = SectionTier.Ac,
-            ActiveBusinessDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            ActiveBusinessDate = DateOnly.FromDateTime(_timeProvider.UtcNow),
             CaptainUserId = Guid.NewGuid(),
             WaiterName = "Captain Suresh",
             CashierUserId = "CASHIER_01",
-            DiscountPercentage = 10m // 10% discount test
+            DiscountPercentage = 0m
         };
+    }
+
+    public void Dispose()
+    {
+        _unitOfWork.Dispose();
+        _dbContext.Dispose();
+        _sqliteConnection.Dispose();
     }
 
     [Fact]
@@ -69,12 +96,18 @@ public class PosVerticalSliceTests
     }
 
     [Fact]
+    public void Domain_Money_NegativeAmount_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Money(-10m));
+    }
+
+    [Fact]
     public void Domain_Bill_TaxCalculationPolicy_ComputesCgstSgstCorrectly()
     {
         // Arrange
         var foodSub = new Money(500m);
         var liquorSub = new Money(0m);
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly today = DateOnly.FromDateTime(_timeProvider.UtcNow);
 
         // Act - Food ₹500, 0% discount, 2.5% CGST + 2.5% SGST (5% total = ₹25 tax)
         var bill = new Bill(
@@ -90,6 +123,7 @@ public class PosVerticalSliceTests
             "Waiter 1",
             foodSub,
             liquorSub,
+            _timeProvider,
             discountPercentage: 0m,
             foodCgstPercent: 2.5m,
             foodSgstPercent: 2.5m
@@ -118,9 +152,10 @@ public class PosVerticalSliceTests
             SectionTier.Family,
             OrderType.DineIn,
             "ORD-101",
-            DateOnly.FromDateTime(DateTime.UtcNow),
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
             Guid.NewGuid(),
-            "Captain Vikas"
+            "Captain Vikas",
+            _timeProvider
         );
 
         order.AddItem(
@@ -134,7 +169,7 @@ public class PosVerticalSliceTests
         );
 
         // Act
-        var kot = order.GenerateKot(KotTicketType.KotKitchen, "KOT-001");
+        var kot = order.GenerateKot(KotTicketType.KotKitchen, "KOT-001", _timeProvider);
 
         // Assert
         Assert.NotNull(kot);
@@ -143,6 +178,169 @@ public class PosVerticalSliceTests
         Assert.Equal("Chicken Tikka", line.EnglishName);
         Assert.Equal("चिकन टिक्का", line.MarathiName);
         Assert.Equal(2, line.Quantity);
+    }
+
+    [Fact]
+    public void Domain_Order_MutationAfterBilling_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            "T-01",
+            SectionTier.Ac,
+            OrderType.DineIn,
+            "ORD-102",
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            Guid.NewGuid(),
+            "Captain Ramesh",
+            _timeProvider
+        );
+
+        order.AddItem(Guid.NewGuid(), "101", "Item 1", "Item 1", DepartmentType.Kitchen, 1, new Money(100m));
+        order.MarkBilled();
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => order.AddItem(Guid.NewGuid(), "102", "Item 2", "Item 2", DepartmentType.Kitchen, 1, new Money(200m)));
+        Assert.Throws<InvalidOperationException>(() => order.GenerateKot(KotTicketType.KotKitchen, "KOT-002", _timeProvider));
+        Assert.Throws<InvalidOperationException>(() => order.MarkBilled());
+    }
+
+    [Fact]
+    public void Domain_Order_ItemConsolidation_ConsolidatesUnsentItems()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            "T-01",
+            SectionTier.Ac,
+            OrderType.DineIn,
+            "ORD-103",
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            Guid.NewGuid(),
+            "Captain Ramesh",
+            _timeProvider
+        );
+
+        Guid itemId = Guid.NewGuid();
+        order.AddItem(itemId, "101", "Butter Chicken", "बटर चिकन", DepartmentType.Kitchen, 1, new Money(300m));
+        order.AddItem(itemId, "101", "Butter Chicken", "बटर चिकन", DepartmentType.Kitchen, 2, new Money(300m));
+
+        Assert.Single(order.Items);
+        Assert.Equal(3, order.Items.First().Quantity);
+
+        // Send to KOT
+        order.GenerateKot(KotTicketType.KotKitchen, "KOT-103", _timeProvider);
+
+        // Add same item again post KOT -> creates new order item line because previous line is sent to KOT
+        order.AddItem(itemId, "101", "Butter Chicken", "बटर चिकन", DepartmentType.Kitchen, 1, new Money(300m));
+        Assert.Equal(2, order.Items.Count);
+    }
+
+    [Fact]
+    public void Domain_Order_DuplicateKotGeneration_ThrowsWhenNoUnsentItems()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            "T-01",
+            SectionTier.Ac,
+            OrderType.DineIn,
+            "ORD-104",
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            Guid.NewGuid(),
+            "Captain Ramesh",
+            _timeProvider
+        );
+
+        order.AddItem(Guid.NewGuid(), "101", "Naan", "नाण", DepartmentType.Kitchen, 2, new Money(40m));
+        order.GenerateKot(KotTicketType.KotKitchen, "KOT-001", _timeProvider);
+
+        // Act & Assert - second KOT attempt for kitchen with zero pending items fails
+        Assert.Throws<InvalidOperationException>(() => order.GenerateKot(KotTicketType.KotKitchen, "KOT-002", _timeProvider));
+    }
+
+    [Fact]
+    public void Domain_Bill_OverSettlement_RejectsPaymentExceedingBalanceDue()
+    {
+        // Arrange
+        var bill = new Bill(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            Guid.NewGuid(),
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            "INV-999",
+            1,
+            "T-01",
+            "Waiter 1",
+            new Money(100m),
+            new Money(0m),
+            _timeProvider,
+            discountPercentage: 0m,
+            foodCgstPercent: 0m,
+            foodSgstPercent: 0m
+        );
+
+        // Bill total is ₹100.
+        var overpayment = new Payment(
+            Guid.NewGuid(),
+            bill.Id,
+            _tenantId,
+            _branchId,
+            PaymentMethod.Cash,
+            new Money(150m),
+            "CASH_REF",
+            "CASHIER_01",
+            _timeProvider
+        );
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => bill.AddPayment(overpayment, _timeProvider, allowOverpayment: false));
+    }
+
+    [Fact]
+    public void Domain_Bill_TenantOrBranchMismatch_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var bill = new Bill(
+            Guid.NewGuid(),
+            _tenantId,
+            _branchId,
+            _locationId,
+            Guid.NewGuid(),
+            DateOnly.FromDateTime(_timeProvider.UtcNow),
+            "INV-998",
+            1,
+            "T-01",
+            "Waiter 1",
+            new Money(100m),
+            new Money(0m),
+            _timeProvider
+        );
+
+        var badTenantPayment = new Payment(
+            Guid.NewGuid(),
+            bill.Id,
+            Guid.NewGuid(), // different tenant
+            _branchId,
+            PaymentMethod.Cash,
+            new Money(100m),
+            "CASH_REF",
+            "CASHIER_01",
+            _timeProvider
+        );
+
+        Assert.Throws<InvalidOperationException>(() => bill.AddPayment(badTenantPayment, _timeProvider));
     }
 
     [Fact]
@@ -155,6 +353,7 @@ public class PosVerticalSliceTests
         Guid itemFoodId = Guid.NewGuid();
         Guid itemBarId = Guid.NewGuid();
 
+        // 2 * 350 = 700 (Food) -> 5% Tax = 35 -> Total Food 735
         _uiController.AddItemToCart(
             itemFoodId,
             "101",
@@ -165,6 +364,7 @@ public class PosVerticalSliceTests
             unitPrice: 350m
         );
 
+        // 1 * 220 = 220 (Liquor) -> 0% Tax = 220
         _uiController.AddItemToCart(
             itemBarId,
             "501",
@@ -176,11 +376,12 @@ public class PosVerticalSliceTests
             unitVolumeMl: 650
         );
 
-        // Split Payment: ₹500 Cash + ₹420 UPI
+        // SubTotal: 920. Food tax (2.5% CGST + 2.5% SGST on 700 = 35). Total = 955.
+        // Split Payment: ₹500 Cash + ₹455 UPI
         var payments = new List<ProcessPaymentRequest>
         {
             new(PaymentMethod.Cash, 500m, "CASH_REF_01"),
-            new(PaymentMethod.UpiQr, 420m, "UPI_RRN_9988776655")
+            new(PaymentMethod.UpiQr, 455m, "UPI_RRN_9988776655")
         };
 
         // Act 1: Process workflow offline
@@ -190,6 +391,7 @@ public class PosVerticalSliceTests
         Assert.True(result.OfflineSaved);
         Assert.False(result.CloudSynced, "Should NOT sync to cloud while offline.");
         Assert.Equal(PaymentStatus.Paid, result.PaymentStatus);
+        Assert.Equal(955m, result.GrandTotal.Amount);
         Assert.Equal(2, result.KotIds.Count); // 1 Kitchen KOT + 1 Bar BOT
         Assert.Equal(2, result.StockMovementIds.Count);
         Assert.Single(result.OutboxEventIds);
@@ -212,7 +414,7 @@ public class PosVerticalSliceTests
         var pendingOutbox = await _unitOfWork.Outbox.GetPendingMessagesAsync(_tenantId);
         Assert.Single(pendingOutbox);
         var outboxMsg = pendingOutbox.First();
-        Assert.Equal(OutboxMessageStatus.Pending, outboxMsg.Status);
+        Assert.Equal(OutboxStatus.Pending, outboxMsg.Status);
         Assert.False(string.IsNullOrWhiteSpace(outboxMsg.PayloadHash));
 
         // Verify Printer Service received receipt streams
@@ -244,6 +446,7 @@ public class PosVerticalSliceTests
         // Arrange
         Guid otherTenantId = Guid.NewGuid();
 
+        // 200 + 5% tax = 210
         _uiController.AddItemToCart(
             Guid.NewGuid(),
             "201",
@@ -256,7 +459,7 @@ public class PosVerticalSliceTests
 
         var payments = new List<ProcessPaymentRequest>
         {
-            new(PaymentMethod.Cash, 200m, "CASH_REF_02")
+            new(PaymentMethod.Cash, 210m, "CASH_REF_02")
         };
 
         var result = await _uiController.ProcessCheckoutAndSettleAsync(payments);
@@ -272,5 +475,141 @@ public class PosVerticalSliceTests
         Assert.Null(billForOtherTenant);
         Assert.Empty(movementsForOtherTenant);
         Assert.Empty(auditsForOtherTenant);
+    }
+
+    [Fact]
+    public async Task Persistence_SurvivesContextDisposalAndApplicationRestartSimulation()
+    {
+        // Arrange & Act - Execute POS Workflow Offline
+        _syncEngine.SetNetworkAvailable(false);
+        _uiController.AddItemToCart(Guid.NewGuid(), "102", "Veg Biryani", "वेज् बिरयानी", DepartmentType.Kitchen, 1, 280m);
+        var payments = new List<ProcessPaymentRequest> { new(PaymentMethod.Cash, 280m, "REF_RESTART") };
+        var result = await _uiController.ProcessCheckoutAndSettleAsync(payments);
+
+        // Simulate Application Restart by disposing current DbContext and creating new fresh instances
+        using (var freshDbContext = new LocalPosDbContext(_dbContextOptions))
+        using (var freshUnitOfWork = new SqlitePosUnitOfWork(freshDbContext))
+        {
+            // Act - Fetch persisted entities from fresh DbContext
+            var order = await freshUnitOfWork.Orders.GetByIdAsync(result.OrderId, _tenantId);
+            var bill = await freshUnitOfWork.Bills.GetByIdAsync(result.BillId, _tenantId);
+            var movements = await freshUnitOfWork.Stock.GetMovementsByReferenceAsync(result.BillId, _tenantId);
+            var audits = await freshUnitOfWork.Audits.GetEventsByReferenceAsync(result.BillId, _tenantId);
+            var outboxMsgs = await freshUnitOfWork.Outbox.GetPendingMessagesAsync(_tenantId);
+
+            // Assert - All entities survive disposal and restart simulation
+            Assert.NotNull(order);
+            Assert.Equal("T-12", order.TableNumber);
+            Assert.Equal(OrderStatus.Completed, order.Status);
+
+            Assert.NotNull(bill);
+            Assert.Equal(result.InvoiceNumber, bill.InvoiceNumber);
+            Assert.Equal(PaymentStatus.Paid, bill.PaymentStatus);
+            Assert.Equal(result.GrandTotal.Amount, bill.GrandTotal.Amount);
+
+            Assert.Single(movements);
+            Assert.Equal("Veg Biryani", movements[0].ItemName);
+
+            Assert.Single(audits);
+            Assert.Equal("POS_WORKFLOW_COMPLETED", audits[0].EventType);
+
+            Assert.Single(outboxMsgs);
+            Assert.Equal(result.OutboxEventIds[0], outboxMsgs[0].EventId);
+        }
+    }
+
+    [Fact]
+    public async Task Persistence_DatabaseContainsAllTransactionRecordsAfterSuccessfulCompletion()
+    {
+        // Arrange & Act
+        _uiController.AddItemToCart(Guid.NewGuid(), "103", "Dal Tadka", "दाल तडका", DepartmentType.Kitchen, 2, 180m);
+        _uiController.AddItemToCart(Guid.NewGuid(), "502", "Whisky 60ml", "व्हिस्की", DepartmentType.Bar, 1, 300m, 60);
+
+        var payments = new List<ProcessPaymentRequest> { new(PaymentMethod.Card, 660m, "CARD_TXN_88") };
+        var result = await _uiController.ProcessCheckoutAndSettleAsync(payments);
+
+        // Query database directly via DbContext
+        var dbOrder = await _dbContext.Orders.Include(o => o.Items).Include(o => o.Kots).FirstOrDefaultAsync(o => o.Id == result.OrderId);
+        var dbBill = await _dbContext.Bills.Include(b => b.Payments).Include(b => b.TaxLines).FirstOrDefaultAsync(b => b.Id == result.BillId);
+        var dbMovements = await _dbContext.StockMovements.Where(s => s.ReferenceTransactionId == result.BillId).ToListAsync();
+        var dbAudits = await _dbContext.AuditEvents.Where(a => a.ReferenceId == result.BillId).ToListAsync();
+        var dbOutbox = await _dbContext.OutboxMessages.Where(o => o.EventId == result.OutboxEventIds[0]).FirstOrDefaultAsync();
+
+        // Assert - Complete transaction records present
+        Assert.NotNull(dbOrder);
+        Assert.Equal(2, dbOrder.Items.Count);
+        Assert.Equal(2, dbOrder.Kots.Count); // Kitchen KOT + Bar BOT
+
+        Assert.NotNull(dbBill);
+        Assert.Single(dbBill.Payments);
+        Assert.NotEmpty(dbBill.TaxLines);
+
+        Assert.Equal(2, dbMovements.Count);
+        Assert.Single(dbAudits);
+        Assert.NotNull(dbOutbox);
+        Assert.Equal("Bill", dbOutbox.AggregateType);
+    }
+
+    [Fact]
+    public async Task Persistence_FailedTransactionsRollBackAllRelatedRecords()
+    {
+        // Arrange
+        Guid testOrderId = Guid.NewGuid();
+        Guid testBillId = Guid.NewGuid();
+
+        // Act & Assert - Execute work inside transaction and throw exception before committing
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await _unitOfWork.BeginTransactionAsync();
+
+            var order = new Order(
+                testOrderId, _tenantId, _branchId, _locationId,
+                "T-99", SectionTier.Family, OrderType.DineIn, "ORD-ERR",
+                DateOnly.FromDateTime(DateTime.UtcNow), Guid.NewGuid(), "Captain Failed"
+            );
+            await _unitOfWork.Orders.AddAsync(order);
+
+            var bill = new Bill(
+                testBillId, _tenantId, _branchId, _locationId, testOrderId,
+                DateOnly.FromDateTime(DateTime.UtcNow), "INV-FAIL-001", 99,
+                "T-99", "Captain Failed", new Money(500m), new Money(0m)
+            );
+            await _unitOfWork.Bills.AddAsync(bill);
+
+            var movement = new StockMovement(
+                Guid.NewGuid(), _tenantId, _branchId, Guid.NewGuid(),
+                "101", "Failed Item", StockMovementType.SaleDeduction, 1, referenceTransactionId: testBillId
+            );
+            await _unitOfWork.Stock.AddMovementAsync(movement);
+
+            var audit = new AuditEvent(
+                Guid.NewGuid(), _tenantId, _branchId, "FAIL_TEST", "TEST",
+                null, "System", testBillId, "{}"
+            );
+            await _unitOfWork.Audits.AddEventAsync(audit);
+
+            var outbox = new OutboxMessage(
+                Guid.NewGuid(), "FailEvent", "Bill", testBillId,
+                _tenantId, _branchId, _deviceId, 1, "{}"
+            );
+            await _unitOfWork.Outbox.AddMessageAsync(outbox);
+
+            // Simulate failure before commit
+            throw new InvalidOperationException("Simulated mid-transaction exception!");
+        });
+
+        // Query database directly to confirm rollback
+        using (var verifyDbContext = new LocalPosDbContext(_dbContextOptions))
+        {
+            var rolledBackOrder = await verifyDbContext.Orders.FirstOrDefaultAsync(o => o.Id == testOrderId);
+            var rolledBackBill = await verifyDbContext.Bills.FirstOrDefaultAsync(b => b.Id == testBillId);
+            var rolledBackMovements = await verifyDbContext.StockMovements.Where(s => s.ReferenceTransactionId == testBillId).ToListAsync();
+            var rolledBackAudits = await verifyDbContext.AuditEvents.Where(a => a.ReferenceId == testBillId).ToListAsync();
+
+            Assert.Null(rolledBackOrder);
+            Assert.Null(rolledBackBill);
+            Assert.Empty(rolledBackMovements);
+            Assert.Empty(rolledBackAudits);
+        }
     }
 }

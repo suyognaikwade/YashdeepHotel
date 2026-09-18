@@ -5,8 +5,9 @@ using Yashdeep.Domain.Entities.Audit;
 using Yashdeep.Domain.Entities.Billing;
 using Yashdeep.Domain.Entities.Inventory;
 using Yashdeep.Domain.Entities.Orders;
-using Yashdeep.Domain.Entities.Sync;
+using Yashdeep.Domain.Outbox;
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Application.Pos.Workflows;
 
@@ -15,15 +16,18 @@ public class CompletePosWorkflowUseCase
     private readonly ILocalPosUnitOfWork _unitOfWork;
     private readonly IPrinterService _printerService;
     private readonly ICloudSyncEngine _syncEngine;
+    private readonly IDateTimeProvider _timeProvider;
 
     public CompletePosWorkflowUseCase(
         ILocalPosUnitOfWork unitOfWork,
         IPrinterService printerService,
-        ICloudSyncEngine syncEngine)
+        ICloudSyncEngine syncEngine,
+        IDateTimeProvider? timeProvider = null)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _printerService = printerService ?? throw new ArgumentNullException(nameof(printerService));
         _syncEngine = syncEngine ?? throw new ArgumentNullException(nameof(syncEngine));
+        _timeProvider = timeProvider ?? new SystemDateTimeProvider();
     }
 
     public async Task<PosWorkflowResult> ExecuteAsync(
@@ -31,6 +35,11 @@ public class CompletePosWorkflowUseCase
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        if (command.TenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(command));
+        if (command.BranchId == Guid.Empty) throw new ArgumentException("BranchId is required.", nameof(command));
+        if (command.Items == null || command.Items.Count == 0)
+            throw new InvalidOperationException("Cannot process workflow with no items.");
 
         // 1. Order Creation & Item Allocation
         var order = new Order(
@@ -44,7 +53,8 @@ public class CompletePosWorkflowUseCase
             command.OrderNumber,
             command.BusinessDate,
             command.CaptainUserId,
-            command.WaiterName
+            command.WaiterName,
+            _timeProvider
         );
 
         foreach (var itemReq in command.Items)
@@ -71,7 +81,7 @@ public class CompletePosWorkflowUseCase
         if (hasKitchenItems)
         {
             string kitchenKotNo = $"KOT-{command.BusinessDate:yyyyMMdd}-{Guid.NewGuid().ToString()[..4].ToUpperInvariant()}";
-            var kitchenKot = order.GenerateKot(KotTicketType.KotKitchen, kitchenKotNo);
+            var kitchenKot = order.GenerateKot(KotTicketType.KotKitchen, kitchenKotNo, _timeProvider);
             kotIds.Add(kitchenKot.Id);
             kotsToPrint.Add(kitchenKot);
         }
@@ -80,7 +90,7 @@ public class CompletePosWorkflowUseCase
         if (hasBarItems)
         {
             string barBotNo = $"BOT-{command.BusinessDate:yyyyMMdd}-{Guid.NewGuid().ToString()[..4].ToUpperInvariant()}";
-            var barBot = order.GenerateKot(KotTicketType.BotBar, barBotNo);
+            var barBot = order.GenerateKot(KotTicketType.BotBar, barBotNo, _timeProvider);
             kotIds.Add(barBot.Id);
             kotsToPrint.Add(barBot);
         }
@@ -95,6 +105,8 @@ public class CompletePosWorkflowUseCase
 
         string invoiceNo = $"INV-{command.BranchId.ToString()[..4].ToUpperInvariant()}-{command.BusinessDate:yyyyMMdd}-{dailySeq:D4}";
 
+        var taxPolicy = command.TaxPolicy ?? new PosTaxPolicyOptions();
+
         var bill = new Bill(
             Guid.NewGuid(),
             command.TenantId,
@@ -108,15 +120,26 @@ public class CompletePosWorkflowUseCase
             command.WaiterName,
             order.CalculateFoodSubTotal(),
             order.CalculateLiquorSubTotal(),
+            _timeProvider,
             command.DiscountPercentage,
-            foodCgstPercent: 2.5m,
-            foodSgstPercent: 2.5m,
-            liquorVatPercent: 0m
+            foodCgstPercent: taxPolicy.FoodCgstPercent,
+            foodSgstPercent: taxPolicy.FoodSgstPercent,
+            liquorVatPercent: taxPolicy.LiquorVatPercent
         );
 
         order.MarkBilled();
 
         // 4. Payment Recording (supporting split tenders)
+        decimal totalPaymentAmount = command.Payments?.Sum(p => p.Amount) ?? 0m;
+
+        if (command.Payments == null || command.Payments.Count == 0)
+            throw new InvalidOperationException("At least one payment method is required.");
+
+        if (!command.AllowOverpayment && totalPaymentAmount > bill.GrandTotal.Amount)
+        {
+            throw new InvalidOperationException($"Total payments ({totalPaymentAmount}) exceed bill grand total ({bill.GrandTotal.Amount}). Split payments must reconcile exactly.");
+        }
+
         foreach (var payReq in command.Payments)
         {
             var payment = new Payment(
@@ -127,15 +150,16 @@ public class CompletePosWorkflowUseCase
                 payReq.Method,
                 new Money(payReq.Amount),
                 payReq.TransactionReference,
-                command.CashierUserId
+                command.CashierUserId,
+                _timeProvider
             );
 
-            bill.AddPayment(payment);
+            bill.AddPayment(payment, _timeProvider, command.AllowOverpayment);
         }
 
         if (bill.PaymentStatus == PaymentStatus.Paid)
         {
-            order.MarkCompleted();
+            order.MarkCompleted(_timeProvider);
         }
 
         await _unitOfWork.Bills.AddAsync(bill, cancellationToken);
@@ -155,6 +179,7 @@ public class CompletePosWorkflowUseCase
                 item.EnglishName,
                 StockMovementType.SaleDeduction,
                 item.Quantity,
+                _timeProvider,
                 volumeDeducted,
                 referenceTransactionId: bill.Id
             );
@@ -179,7 +204,8 @@ public class CompletePosWorkflowUseCase
                 InvoiceNumber = bill.InvoiceNumber,
                 GrandTotal = bill.GrandTotal.Amount,
                 PaymentStatus = bill.PaymentStatus.ToString()
-            })
+            }),
+            _timeProvider
         );
         await _unitOfWork.Audits.AddEventAsync(auditEvent, cancellationToken);
 
@@ -199,14 +225,16 @@ public class CompletePosWorkflowUseCase
 
         var outboxMsg = new OutboxMessage(
             Guid.NewGuid(),
-            "PosTransactionCompletedEvent",
             "Bill",
             bill.Id,
             command.TenantId,
             command.BranchId,
             command.DeviceId,
-            sequenceNumber: bill.DailySequenceNumber,
-            payloadJson: outboxPayload
+            bill.DailySequenceNumber,
+            "PosTransactionCompletedEvent",
+            1,
+            _timeProvider.UtcNow,
+            outboxPayload
         );
         await _unitOfWork.Outbox.AddMessageAsync(outboxMsg, cancellationToken);
         outboxEventIds.Add(outboxMsg.EventId);

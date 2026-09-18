@@ -2,6 +2,7 @@ namespace Yashdeep.Infrastructure.Connectivity;
 
 using Yashdeep.Application.Connectivity;
 using Yashdeep.Domain.Connectivity;
+using Yashdeep.Shared.Connectivity;
 
 /// <summary>
 /// Evaluates device connectivity state according to mandatory product rules, configurable warning thresholds, and configurable soft grace periods.
@@ -79,12 +80,14 @@ public class ConnectivityStateEvaluator : IConnectivityStateEvaluator
                 {
                     State = ConnectivityState.SynchronizationFailure,
                     Message = $"Online check-in attempted but sync failed: {context.SyncFailureReason}",
-                    CanPerformTransactions = true
+                    CanPerformTransactions = true,
+                    LastVerifiedServerTimeUtc = lastCheckIn?.ServerTimeUtc ?? context.CurrentLocalTimeUtc
                 };
             }
 
             // Successful check-in / reconnect
-            _serverTimeProvider.SynchronizeServerTime(context.CurrentLocalTimeUtc); // Or online server time
+            var verifiedServerTime = context.ServerTimeUtc ?? context.CurrentLocalTimeUtc;
+            _serverTimeProvider.SynchronizeServerTime(verifiedServerTime, context.CurrentLocalTimeUtc);
 
             return new ConnectivityStateResult
             {
@@ -93,7 +96,7 @@ public class ConnectivityStateEvaluator : IConnectivityStateEvaluator
                 RemainingCheckInTime = _options.MandatoryCheckInWindow,
                 RemainingGraceTime = _options.SoftGracePeriod,
                 CanPerformTransactions = true,
-                LastVerifiedServerTimeUtc = context.CurrentLocalTimeUtc
+                LastVerifiedServerTimeUtc = verifiedServerTime
             };
         }
 
@@ -106,7 +109,9 @@ public class ConnectivityStateEvaluator : IConnectivityStateEvaluator
                 State = ConnectivityState.NormalOfflineOperation,
                 Message = "Initial device setup; operating in normal offline mode.",
                 RemainingCheckInTime = _options.MandatoryCheckInWindow,
-                CanPerformTransactions = true
+                RemainingGraceTime = _options.SoftGracePeriod,
+                CanPerformTransactions = true,
+                LastVerifiedServerTimeUtc = context.CurrentLocalTimeUtc
             };
         }
 

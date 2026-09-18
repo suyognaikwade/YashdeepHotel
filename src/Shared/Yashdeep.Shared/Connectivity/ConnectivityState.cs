@@ -11,6 +11,7 @@ public enum ConnectivityState
     /// 1. Normal offline operation: Terminal is offline but within valid 7-day (168-hour) window. Full POS enabled.
     /// </summary>
     NormalOfflineActive = 1,
+    NormalOfflineOperation = 1,
 
     /// <summary>
     /// 2. Connectivity warning: Offline for 5 to 7 days (120 to 168 hours). Full POS enabled, UI banner warning visible.
