@@ -8,7 +8,6 @@ namespace Yashdeep.Shared.Sync
     {
         public Guid EventId { get; set; }
         public string EventType { get; set; } = string.Empty;
-        public int EventVersion { get; set; } = 1;
         public string AggregateType { get; set; } = string.Empty;
         public Guid AggregateId { get; set; }
         public Guid TenantId { get; set; }
@@ -17,7 +16,6 @@ namespace Yashdeep.Shared.Sync
         public long SequenceNumber { get; set; }
         public DateTime CreatedUtc { get; set; }
         public string PayloadJson { get; set; } = "{}";
-        public string? PayloadHash { get; set; }
         public string? PayloadSignature { get; set; }
 
         public string ComputePayloadHash()

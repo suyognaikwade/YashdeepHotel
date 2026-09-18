@@ -3,6 +3,10 @@
   <Folder Name="/src/Application/">
     <Project Path="src/Application/Yashdeep.Application/Yashdeep.Application.csproj" />
   </Folder>
+  <Folder Name="/src/Client/">
+    <Project Path="src/Client/Yashdeep.Client.Blazor/Yashdeep.Client.Blazor.csproj" />
+    <Project Path="src/Client/Yashdeep.Client.Maui/Yashdeep.Client.Maui.csproj" />
+  </Folder>
   <Folder Name="/src/Domain/">
     <Project Path="src/Domain/Yashdeep.Domain/Yashdeep.Domain.csproj" />
   </Folder>
@@ -13,6 +17,9 @@
     <Project Path="src/Persistence/Yashdeep.Persistence.Cloud/Yashdeep.Persistence.Cloud.csproj" />
     <Project Path="src/Persistence/Yashdeep.Persistence.Local/Yashdeep.Persistence.Local.csproj" />
   </Folder>
+  <Folder Name="/src/Server/">
+    <Project Path="src/Server/Yashdeep.Server.Api/Yashdeep.Server.Api.csproj" />
+  </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/Yashdeep.Shared/Yashdeep.Shared.csproj" />
   </Folder>
@@ -20,8 +27,13 @@
     <Project Path="src/SyncEngine/Yashdeep.SyncEngine/Yashdeep.SyncEngine.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Yashdeep.Outbox.Tests/Yashdeep.Outbox.Tests.csproj" />
-    <Project Path="tests/Yashdeep.SyncEngine.Tests/Yashdeep.SyncEngine.Tests.csproj" />
     <Project Path="tests/Yashdeep.Tests/Yashdeep.Tests.csproj" />
+    <Project Path="tests/Yashdeep.Tests.DeviceRegistration/Yashdeep.Tests.DeviceRegistration.csproj" />
+    <Project Path="tests/Yashdeep.Persistence.Local.Tests/Yashdeep.Persistence.Local.Tests.csproj" />
+    <Project Path="tests/Yashdeep.Tests.Unit/Yashdeep.Tests.Unit.csproj" />
+    <Project Path="tests/Yashdeep.Shared.Tests/Yashdeep.Shared.Tests.csproj" />
+    <Project Path="tests/Yashdeep.SyncEngine.Tests/Yashdeep.SyncEngine.Tests.csproj" />
+    <Project Path="tests/Yashdeep.Connectivity.Tests/Yashdeep.Connectivity.Tests.csproj" />
+    <Project Path="tests/Yashdeep.Outbox.Tests/Yashdeep.Outbox.Tests.csproj" />
   </Folder>
 </Solution>
