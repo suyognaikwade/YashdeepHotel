@@ -21,6 +21,18 @@ public class DevicesController : ControllerBase
 
     private Guid GetTenantIdFromHeaderOrRequest(Guid requestTenantId)
     {
+        if (HttpContext.Items.TryGetValue("TenantMismatch", out var tenantMismatchObj) &&
+            tenantMismatchObj is bool tenantMismatch && tenantMismatch)
+        {
+            throw new UnauthorizedAccessException("Cross-tenant device access header mismatch.");
+        }
+
+        if (HttpContext.Items.TryGetValue("BranchMismatch", out var branchMismatchObj) &&
+            branchMismatchObj is bool branchMismatch && branchMismatch)
+        {
+            throw new UnauthorizedAccessException("Cross-branch device access header mismatch.");
+        }
+
         if (HttpContext.Items.TryGetValue("TenantId", out var item) && item is Guid tenantId && tenantId != Guid.Empty)
         {
             if (requestTenantId != Guid.Empty && requestTenantId != tenantId)
@@ -38,12 +50,24 @@ public class DevicesController : ControllerBase
         return requestTenantId;
     }
 
+    private void ValidateBranchContext(Guid requestBranchId)
+    {
+        if (HttpContext.Items.TryGetValue("BranchId", out var item) && item is Guid tokenBranchId && tokenBranchId != Guid.Empty)
+        {
+            if (requestBranchId != Guid.Empty && requestBranchId != tokenBranchId)
+            {
+                throw new UnauthorizedAccessException("Cross-branch device access mismatch.");
+            }
+        }
+    }
+
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDeviceRequest request)
     {
         try
         {
             var tenantId = GetTenantIdFromHeaderOrRequest(request.TenantId);
+            ValidateBranchContext(request.BranchId);
             var normalizedRequest = request with { TenantId = tenantId };
             var response = await _deviceService.RegisterDeviceAsync(normalizedRequest);
             return CreatedAtAction(nameof(GetStatus), new { id = response.DeviceId }, response);
@@ -60,6 +84,10 @@ public class DevicesController : ControllerBase
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
         }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
+        }
     }
 
     [HttpPost("activate")]
@@ -68,6 +96,7 @@ public class DevicesController : ControllerBase
         try
         {
             var tenantId = GetTenantIdFromHeaderOrRequest(request.TenantId);
+            ValidateBranchContext(request.BranchId);
             var normalizedRequest = request with { TenantId = tenantId };
             var response = await _deviceService.ActivateDeviceAsync(normalizedRequest);
             return Ok(response);
@@ -83,6 +112,10 @@ public class DevicesController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
         }
     }
 
@@ -108,6 +141,10 @@ public class DevicesController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
+        }
     }
 
     [HttpPost("{id:guid}/revoke")]
@@ -131,6 +168,10 @@ public class DevicesController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
         }
     }
 
@@ -156,6 +197,10 @@ public class DevicesController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
+        }
     }
 
     [HttpPost("{id:guid}/replace")]
@@ -180,6 +225,10 @@ public class DevicesController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
+        }
     }
 
     [HttpGet("{id:guid}")]
@@ -199,6 +248,10 @@ public class DevicesController : ControllerBase
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
         }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
+        }
     }
 
     [HttpGet("branch/{branchId:guid}")]
@@ -207,12 +260,17 @@ public class DevicesController : ControllerBase
         try
         {
             var resolvedTenantId = GetTenantIdFromHeaderOrRequest(tenantId);
+            ValidateBranchContext(branchId);
             var devices = await _deviceService.GetBranchDevicesAsync(resolvedTenantId, branchId);
             return Ok(devices);
         }
         catch (UnauthorizedAccessException ex)
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An internal security error occurred." });
         }
     }
 }
