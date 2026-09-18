@@ -142,12 +142,14 @@ try {
     
     $schemaSql | Out-File "$OutputDir\schema_postgres.sql" -Encoding UTF8
     
+    $passwordStatus = if ([string]::IsNullOrEmpty($Password)) { "[NONE]" } else { "[PROVIDED]" }
+
     # Create README
     @"
 # Database Extraction Summary
 
 **Source:** $MdbPath
-**Password:** <PROTECTED_PASSWORD>
+**Password:** $passwordStatus
 **Extracted:** $(Get-Date)
 **Tables found:** $($userTables.Count)
 
@@ -180,6 +182,6 @@ try {
     Write-Host "   https://www.microsoft.com/en-us/download/details.aspx?id=54920"
     Write-Host "2. Run this script in 32-bit PowerShell:"
     Write-Host "   C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
-    Write-Host "3. Verify password is correct if database is password-protected"
+    Write-Host "3. Verify password is correct."
     exit 1
 }

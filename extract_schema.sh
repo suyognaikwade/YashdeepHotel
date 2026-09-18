@@ -5,7 +5,8 @@
 # Usage: 
 #   1. Copy dinurss.mdb to Linux/WSL2
 #   2. chmod +x extract_schema.sh
-#   3. MDB_PASSWORD="your_password" ./extract_schema.sh dinurss.mdb
+#   3. ./extract_schema.sh [path_to_mdb_file] [password]
+#   or: MDB_PASSWORD="your_password" ./extract_schema.sh [path_to_mdb_file]
 
 set -euo pipefail
 
@@ -15,8 +16,14 @@ OUTPUT_DIR="extracted_schema_$(date +%Y%m%d_%H%M%S)"
 
 if [[ ! -f "$MDB_FILE" ]]; then
     echo "Error: $MDB_FILE not found"
-    echo "Usage: $0 <path_to_mdb_file>"
+    echo "Usage: $0 <path_to_mdb_file> [password]"
+    echo "Or set MDB_PASSWORD environment variable"
     exit 1
+fi
+
+if [[ -z "$PASSWORD" ]] && [[ -t 0 ]]; then
+    read -rsp "Enter MDB database password (leave blank if none): " PASSWORD
+    echo ""
 fi
 
 # Check for mdbtools
@@ -32,15 +39,20 @@ echo "=========================================="
 
 mkdir -p "$OUTPUT_DIR"
 
+MDB_ARGS=()
+if [[ -n "$PASSWORD" ]]; then
+    MDB_ARGS=(-p "$PASSWORD")
+fi
+
 # 1. List all tables
 echo "Step 1: Listing tables..."
-mdb-tables -1 "$MDB_FILE" | tee "$OUTPUT_DIR/tables.txt"
+mdb-tables "${MDB_ARGS[@]}" -1 "$MDB_FILE" | tee "$OUTPUT_DIR/tables.txt"
 
 # 2. Export schema (PostgreSQL dialect)
 echo "Step 2: Exporting schema..."
-mdb-schema "$MDB_FILE" postgres > "$OUTPUT_DIR/schema_postgres.sql"
-mdb-schema "$MDB_FILE" mysql > "$OUTPUT_DIR/schema_mysql.sql"
-mdb-schema "$MDB_FILE" sqlite > "$OUTPUT_DIR/schema_sqlite.sql"
+mdb-schema "${MDB_ARGS[@]}" "$MDB_FILE" postgres > "$OUTPUT_DIR/schema_postgres.sql"
+mdb-schema "${MDB_ARGS[@]}" "$MDB_FILE" mysql > "$OUTPUT_DIR/schema_mysql.sql"
+mdb-schema "${MDB_ARGS[@]}" "$MDB_FILE" sqlite > "$OUTPUT_DIR/schema_sqlite.sql"
 
 # 3. Export each table to CSV
 echo "Step 3: Exporting table data..."
@@ -48,9 +60,14 @@ TABLE_COUNT=0
 while IFS= read -r table; do
     [[ -z "$table" ]] && continue
     echo "  Exporting: $table"
-    mdb-export -D '%Y-%m-%d %H:%M:%S' -I postgres "$MDB_FILE" "$table" > "$OUTPUT_DIR/${table}.csv"
+    mdb-export "${MDB_ARGS[@]}" -D '%Y-%m-%d %H:%M:%S' -I postgres "$MDB_FILE" "$table" > "$OUTPUT_DIR/${table}.csv"
     ((TABLE_COUNT++))
 done < "$OUTPUT_DIR/tables.txt"
+
+PASSWORD_STATUS="[NONE]"
+if [[ -n "$PASSWORD" ]]; then
+    PASSWORD_STATUS="[PROVIDED]"
+fi
 
 # 4. Generate summary
 echo "Step 4: Generating summary..."
@@ -58,7 +75,7 @@ cat > "$OUTPUT_DIR/README.md" << EOF
 # Database Extraction Summary
 
 **Source:** $MDB_FILE
-**Password:** <PROTECTED_PASSWORD>
+**Password:** $PASSWORD_STATUS
 **Extracted:** $(date)
 **Tables found:** $TABLE_COUNT
 
@@ -81,7 +98,7 @@ echo "Step 5: Row counts..."
 echo "Table,Rows" > "$OUTPUT_DIR/row_counts.csv"
 while IFS= read -r table; do
     [[ -z "$table" ]] && continue
-    rows=$(mdb-export -D '%Y-%m-%d' "$MDB_FILE" "$table" 2>/dev/null | wc -l)
+    rows=$(mdb-export "${MDB_ARGS[@]}" -D '%Y-%m-%d' "$MDB_FILE" "$table" 2>/dev/null | wc -l)
     # Subtract header row
     rows=$((rows - 1))
     echo "$table,$rows" >> "$OUTPUT_DIR/row_counts.csv"
