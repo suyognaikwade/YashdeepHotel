@@ -1,16 +1,22 @@
 using System;
-using Yashdeep.Domain.Enums;
 
-namespace Yashdeep.Application.Common.Interfaces;
-
-public interface ITenantContext
+namespace Yashdeep.Application.Common.Interfaces
 {
-    Guid? TenantId { get; }
-    TenantStatus? Status { get; }
-    bool HasTenant => TenantId.HasValue && TenantId.Value != Guid.Empty;
-}
+    public interface ITenantContext
+    {
+        Guid TenantId { get; }
+        Guid BranchId { get; }
+    }
 
-public interface ITenantContextSetter
-{
-    void SetTenantContext(Guid tenantId, TenantStatus status);
+    public sealed class TenantContext : ITenantContext
+    {
+        public Guid TenantId { get; set; }
+        public Guid BranchId { get; set; }
+
+        public TenantContext(Guid tenantId, Guid branchId = default)
+        {
+            TenantId = tenantId;
+            BranchId = branchId;
+        }
+    }
 }
