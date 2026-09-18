@@ -33,6 +33,12 @@ public record ProcessPaymentRequest(
     string TransactionReference
 );
 
+public record PosTaxPolicyOptions(
+    decimal FoodCgstPercent = 2.5m,
+    decimal FoodSgstPercent = 2.5m,
+    decimal LiquorVatPercent = 0m
+);
+
 public record CompletePosWorkflowCommand(
     Guid TenantId,
     Guid BranchId,
@@ -48,7 +54,9 @@ public record CompletePosWorkflowCommand(
     string CashierUserId,
     List<PosOrderItemRequest> Items,
     decimal DiscountPercentage,
-    List<ProcessPaymentRequest> Payments
+    List<ProcessPaymentRequest> Payments,
+    PosTaxPolicyOptions? TaxPolicy = null,
+    bool AllowOverpayment = false
 );
 
 public record PosWorkflowResult(

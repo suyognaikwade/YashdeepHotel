@@ -96,7 +96,7 @@ namespace Yashdeep.Persistence.Cloud.Tests
         }
 
         [Fact]
-        public async Task MissingTenantContext_ReturnsAllRecords()
+        public async Task MissingTenantContext_FailsClosed_ReturnsZeroRecords()
         {
             var tenantA = Guid.NewGuid();
             var tenantB = Guid.NewGuid();
@@ -136,19 +136,19 @@ namespace Yashdeep.Persistence.Cloud.Tests
                 await seedContext.SaveChangesAsync();
             }
 
-            // Null tenant context
+            // Null tenant context fails closed
             using (var dbNoContext = new CloudDbContext(_options, null))
             {
                 var messages = await dbNoContext.InboxMessages.ToListAsync();
-                Assert.Equal(2, messages.Count);
+                Assert.Empty(messages);
             }
 
-            // Empty tenant context ID
+            // Empty tenant context ID fails closed
             var emptyContext = new TenantContext(Guid.Empty);
             using (var dbEmptyContext = new CloudDbContext(_options, emptyContext))
             {
                 var messages = await dbEmptyContext.InboxMessages.ToListAsync();
-                Assert.Equal(2, messages.Count);
+                Assert.Empty(messages);
             }
         }
 

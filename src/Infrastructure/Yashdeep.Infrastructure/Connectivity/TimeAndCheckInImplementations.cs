@@ -40,16 +40,28 @@ public class ClockTamperDetector : IClockTamperDetector
             return true;
         }
 
-        // Check 2: Monotonic tick comparison (if ticks were recorded)
-        if (lastCheckIn.MonotonicTicks > 0 && currentMonotonicTicks >= lastCheckIn.MonotonicTicks)
+        // Check 2: Monotonic tick comparison
+        if (lastCheckIn.MonotonicTicks > 0)
         {
-            double monotonicElapsedSeconds = (double)(currentMonotonicTicks - lastCheckIn.MonotonicTicks) / Stopwatch.Frequency;
-            double wallClockElapsedSeconds = (currentLocalTimeUtc - lastCheckIn.LocalTimeUtc).TotalSeconds;
-
-            // If wall clock moved backwards relative to monotonic time beyond allowed skew
-            if (wallClockElapsedSeconds < monotonicElapsedSeconds - maxAllowedSkew.TotalSeconds)
+            if (currentMonotonicTicks < lastCheckIn.MonotonicTicks)
             {
-                return true;
+                // Monotonic tick decreased (system reboot / hardware reset).
+                // Ensure wall clock didn't jump backwards or jump excessively beyond reasonable reboot window without online verification.
+                if (currentLocalTimeUtc < lastCheckIn.LocalTimeUtc)
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                double monotonicElapsedSeconds = (double)(currentMonotonicTicks - lastCheckIn.MonotonicTicks) / Stopwatch.Frequency;
+                double wallClockElapsedSeconds = (currentLocalTimeUtc - lastCheckIn.LocalTimeUtc).TotalSeconds;
+
+                // If wall clock moved backwards relative to monotonic time beyond allowed skew
+                if (wallClockElapsedSeconds < monotonicElapsedSeconds - maxAllowedSkew.TotalSeconds)
+                {
+                    return true;
+                }
             }
         }
 
@@ -115,11 +127,11 @@ public class ServerTimeProvider : IServerTimeProvider
         return lastCheckIn.ServerTimeUtc + (DateTime.UtcNow - lastCheckIn.LocalTimeUtc);
     }
 
-    public void SynchronizeServerTime(DateTime serverTimeUtc)
+    public void SynchronizeServerTime(DateTime serverTimeUtc, DateTime? localTimeUtc = null)
     {
         var record = _checkInStore.GetLastCheckIn(_deviceId) ?? new DeviceCheckInRecord { DeviceId = _deviceId };
         record.ServerTimeUtc = serverTimeUtc;
-        record.LocalTimeUtc = DateTime.UtcNow;
+        record.LocalTimeUtc = localTimeUtc ?? DateTime.UtcNow;
         record.MonotonicTicks = _monotonicClock.GetMonotonicTicks();
         _checkInStore.SaveCheckIn(record);
     }

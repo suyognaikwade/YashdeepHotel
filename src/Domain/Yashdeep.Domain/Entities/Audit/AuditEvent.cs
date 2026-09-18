@@ -1,3 +1,5 @@
+using Yashdeep.Shared.Time;
+
 namespace Yashdeep.Domain.Entities.Audit;
 
 public class AuditEvent
@@ -30,8 +32,13 @@ public class AuditEvent
         Guid? userId,
         string performedBy,
         Guid referenceId,
-        string detailsJson)
+        string detailsJson,
+        IDateTimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (tenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        if (branchId == Guid.Empty) throw new ArgumentException("BranchId is required.", nameof(branchId));
+
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         TenantId = tenantId;
         BranchId = branchId;
@@ -41,6 +48,6 @@ public class AuditEvent
         PerformedBy = performedBy ?? string.Empty;
         ReferenceId = referenceId;
         DetailsJson = detailsJson ?? "{}";
-        TimestampUtc = DateTime.UtcNow;
+        TimestampUtc = timeProvider.UtcNow;
     }
 }

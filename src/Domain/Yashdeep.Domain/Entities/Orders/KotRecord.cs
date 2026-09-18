@@ -1,4 +1,5 @@
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Domain.Entities.Orders;
 
@@ -32,18 +33,29 @@ public class KotRecord
         KotTicketType ticketType,
         string tableNumber,
         string waiterName,
-        IEnumerable<KotLineItem> items)
+        IEnumerable<KotLineItem> items,
+        IDateTimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (tenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        if (branchId == Guid.Empty) throw new ArgumentException("BranchId is required.", nameof(branchId));
+        if (orderId == Guid.Empty) throw new ArgumentException("OrderId is required.", nameof(orderId));
+
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         OrderId = orderId;
         TenantId = tenantId;
         BranchId = branchId;
-        KotNumber = kotNumber ?? throw new ArgumentNullException(nameof(kotNumber));
+        KotNumber = string.IsNullOrWhiteSpace(kotNumber) ? throw new ArgumentException("KotNumber cannot be empty.", nameof(kotNumber)) : kotNumber;
         TicketType = ticketType;
         TableNumber = tableNumber ?? string.Empty;
         WaiterName = waiterName ?? string.Empty;
-        PrintedAtUtc = DateTime.UtcNow;
-        _lineItems.AddRange(items ?? Array.Empty<KotLineItem>());
+        PrintedAtUtc = timeProvider.UtcNow;
+
+        var itemList = items?.ToList() ?? new List<KotLineItem>();
+        if (itemList.Count == 0)
+            throw new ArgumentException("KOT line items cannot be empty.", nameof(items));
+
+        _lineItems.AddRange(itemList);
     }
 }
 

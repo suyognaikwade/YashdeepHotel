@@ -1,6 +1,7 @@
 using Yashdeep.Application.Pos.DTOs;
 using Yashdeep.Application.Pos.Workflows;
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Application.Pos.UI;
 
@@ -20,6 +21,7 @@ public class PosTerminalUiController
     public string WaiterName { get; set; } = "Captain Ramesh";
     public string CashierUserId { get; set; } = "CASHIER_01";
     public decimal DiscountPercentage { get; set; } = 0m;
+    public PosTaxPolicyOptions TaxPolicy { get; set; } = new();
 
     public IReadOnlyCollection<PosOrderItemRequest> CurrentCart => _currentCart.AsReadOnly();
 
@@ -41,6 +43,11 @@ public class PosTerminalUiController
         decimal unitPrice,
         int? unitVolumeMl = null)
     {
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
+        if (unitPrice < 0)
+            throw new ArgumentOutOfRangeException(nameof(unitPrice), "Unit price cannot be negative.");
+
         _currentCart.Add(new PosOrderItemRequest(
             menuItemId,
             itemCode,
@@ -89,7 +96,8 @@ public class PosTerminalUiController
             CashierUserId,
             _currentCart.ToList(),
             DiscountPercentage,
-            payments
+            payments,
+            TaxPolicy
         );
 
         var result = await _workflowUseCase.ExecuteAsync(command, cancellationToken);
