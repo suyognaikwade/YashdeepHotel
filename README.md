@@ -11,17 +11,51 @@
 
 ---
 
+## 🛠️ Modern Solution Development & Workflows
+
+The modern application solution foundation (`YashdeepHotel.sln`) is structured according to Clean Architecture guidelines defined in [**`docs/IMPLEMENTATION_CONTRACT.md`**](docs/IMPLEMENTATION_CONTRACT.md).
+
+### Solution Project Structure
+* `src/Domain/Yashdeep.Domain` — Domain models, aggregates, and interfaces (zero infrastructure dependencies).
+* `src/Application/Yashdeep.Application` — Use cases, interfaces, CQRS orchestration.
+* `src/Shared/Yashdeep.Shared` — DTO contracts and dynamic entitlement definitions.
+* `src/Infrastructure/Yashdeep.Infrastructure` — Hardware drivers, QuestPDF builders, external adapters.
+* `src/Persistence/Yashdeep.Persistence.Cloud` — PostgreSQL cloud EF Core DbContext & Row-Level Security.
+* `src/Persistence/Yashdeep.Persistence.Local` — SQLite SQLCipher edge EF Core DbContext & WAL mode.
+* `src/SyncEngine/Yashdeep.SyncEngine` — Offline Outbox/Inbox synchronization engine.
+* `src/Server/Yashdeep.Server.Api` — ASP.NET Core Web API Host & composition root.
+* `src/Client/Yashdeep.Client.Blazor` — Cross-platform Blazor UI Razor components.
+* `src/Client/Yashdeep.Client.Maui` — .NET MAUI shell host for Windows & Android terminals.
+* `tests/Yashdeep.Tests.Unit` — Automated unit test suite.
+
+### Build and Test Commands
+To build the solution and execute tests using .NET 9 CLI:
+
+```bash
+# Build the modern solution
+dotnet build YashdeepHotel.sln
+
+# Run automated tests
+dotnet test YashdeepHotel.sln
+
+# Run the Web API server
+dotnet run --project src/Server/Yashdeep.Server.Api/Yashdeep.Server.Api.csproj
+```
+
+*Note: In environments where .NET 10 SDK is installed alongside .NET 9 runtime, set `DOTNET_ROLL_FORWARD=Major` if required when running CLI commands.*
+
+---
+
 ## 🤖 AI Agent Quick Start
 
 If you are an AI coding agent assigned to this repository, read and follow these essential documents before making changes:
 
 1. [**`AGENTS.md`**](AGENTS.md): Core agent rules, system constants, protected directory map, and task workflows.
-2. [**`docs/AGENTS_AND_RULES.md`**](docs/AGENTS_AND_RULES.md): Detailed AI agent operational specifications, safety rules, dangerous operations, and post-change validation.
-3. [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md): System architecture (Legacy VB.NET/Access Jet 4.0 vs. Target .NET 9 Blazor Hybrid + PostgreSQL/SQLite SaaS).
+2. [**`docs/IMPLEMENTATION_CONTRACT.md`**](docs/IMPLEMENTATION_CONTRACT.md): Authoritative modern SaaS implementation contract and architectural rules.
+3. [**`docs/AGENTS_AND_RULES.md`**](docs/AGENTS_AND_RULES.md): Detailed AI agent operational specifications, safety rules, dangerous operations, and post-change validation.
 4. [**`docs/SAAS_ARCHITECTURE.md`**](docs/SAAS_ARCHITECTURE.md): Multi-Tenant SaaS Architecture (Tenants, lifecycle, isolation, PostgreSQL RLS, subscriptions & multi-location behavior).
 5. [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md): Domain workflows (Dining sections, KOT routing, split taxes, dynamic UPI, multi-tier stock, FL-III Excise compliance, Day End).
-5. [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md): Complete schema reference for all 105 user tables.
-6. [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md): Setup, actual commands, testing expectations, C# conventions, and troubleshooting.
+6. [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md): Complete schema reference for all 105 user tables.
 7. [**`docs/CONFIGURATION_AND_ENV.md`**](docs/CONFIGURATION_AND_ENV.md): Environment variables, configuration, hardware thermal printing, and security policies.
 
 ---
@@ -104,7 +138,7 @@ Legacy Architecture (RSS26)                 Modern Target Architecture (SaaS)
 └──────────────────────────────────────┘     └──────────────────────────────────────┘
 ```
 
-For complete technical specifications, see [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md).
+For complete technical specifications, see [**`docs/IMPLEMENTATION_CONTRACT.md`**](docs/IMPLEMENTATION_CONTRACT.md).
 
 ---
 
@@ -211,10 +245,10 @@ From the 44 historical error log files (2022–2026), the top production failure
 ## 9. Modernization Roadmap (.NET 9 + Blazor + SQLite + PostgreSQL)
 
 ```
-Phase 1: Database Ingestion & Domain Modeling
-├── Set up PostgreSQL 16 schema using schema_extracted/postgres_schema.sql
-├── Implement Yashdeep.Domain entities (Table, KOT, Bill, StockItem, ExciseRegister)
-└── Build Access-to-PostgreSQL data migration pipeline
+Phase 1: Foundation & Clean Architecture Solution Setup (COMPLETED Task 1)
+├── Single solution (YashdeepHotel.sln) with 11 projects (Domain, App, Shared, Infra, Persistence, Sync, Server, Clients, Tests)
+├── Directory.Build.props enforcing .NET 9, C# 13, Nullable=enable, TreatWarningsAsErrors=true
+└── Minimal Web APIcomposition root with /health check endpoint & unit tests
 
 Phase 2: Offline-First POS Engine
 ├── Local SQLite DbContext + EF Core
@@ -245,12 +279,12 @@ The repository contains a dedicated documentation layer under [`docs/`](docs/):
 | Document | Purpose |
 | :--- | :--- |
 | [**`AGENTS.md`**](AGENTS.md) | AI Agent onboarding guide, rules, constants, directory map, and task workflows. |
+| [**`docs/IMPLEMENTATION_CONTRACT.md`**](docs/IMPLEMENTATION_CONTRACT.md) | Authoritative modern SaaS implementation contract and architectural rules. |
 | [**`docs/AGENTS_AND_RULES.md`**](docs/AGENTS_AND_RULES.md) | Comprehensive AI agent operational specifications, safety rules, dangerous commands, and post-change validation. |
 | [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md) | Deep technical breakdown of legacy WinForms vs target .NET 9 Blazor Hybrid SaaS architecture. |
 | [**`docs/SAAS_ARCHITECTURE.md`**](docs/SAAS_ARCHITECTURE.md) | Multi-tenant SaaS architecture, tenant lifecycle, PostgreSQL RLS, entitlements, and security boundary specs. |
 | [**`docs/BUSINESS_LOGIC.md`**](docs/BUSINESS_LOGIC.md) | Exhaustive domain workflows (Seating sections, KOT, split taxes, UPI, liquor tiers, Excise compliance, Day End). |
 | [**`docs/DATABASE_SCHEMA.md`**](docs/DATABASE_SCHEMA.md) | Schema specification for all 105 user tables. |
-| [**`docs/DEVELOPMENT_AND_WORKFLOWS.md`**](docs/DEVELOPMENT_AND_WORKFLOWS.md) | Environment setup, CLI/PowerShell commands matrix, C# conventions, testing, DoD, and troubleshooting. |
 | [**`docs/CONFIGURATION_AND_ENV.md`**](docs/CONFIGURATION_AND_ENV.md) | Environment variables matrix, configuration management, ESC/POS hardware thermal printing, and security policies. |
 | [**`DECOMPILATION_GUIDE.md`**](DECOMPILATION_GUIDE.md) | Reverse-engineering manual & decompilation tool guide. |
 | [**`PROJECT_ANALYSIS.md`**](PROJECT_ANALYSIS.md) | Initial binary static analysis findings. |

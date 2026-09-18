@@ -1,0 +1,56 @@
+@using Yashdeep.Application.Connectivity
+@using Yashdeep.Domain.Connectivity
+@inject IConnectivityStateEvaluator ConnectivityEvaluator
+
+@if (CurrentState != ConnectivityState.NormalOfflineOperation && CurrentState != ConnectivityState.Recovery)
+{
+    <div class="connectivity-banner @GetCssClass(CurrentState)" role="alert">
+        <span class="connectivity-icon">@GetIcon(CurrentState)</span>
+        <span class="connectivity-message">@GetMessage(CurrentState)</span>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public ConnectivityState CurrentState { get; set; } = ConnectivityState.NormalOfflineOperation;
+
+    [Parameter]
+    public ConnectivityEvaluationContext? Context { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Context != null)
+        {
+            var result = ConnectivityEvaluator.EvaluateState(Context);
+            CurrentState = result.State;
+        }
+    }
+
+    private string GetCssClass(ConnectivityState state) => state switch
+    {
+        ConnectivityState.ConnectivityWarning => "banner-warning",
+        ConnectivityState.ConnectivityExpiry => "banner-danger",
+        ConnectivityState.RestrictedOperation => "banner-restricted",
+        ConnectivityState.SynchronizationFailure => "banner-warning",
+        ConnectivityState.DeviceSuspension => "banner-danger",
+        _ => "banner-info"
+    };
+
+    private string GetIcon(ConnectivityState state) => state switch
+    {
+        ConnectivityState.ConnectivityWarning => "⚠️",
+        ConnectivityState.ConnectivityExpiry => "🚨",
+        ConnectivityState.RestrictedOperation => "🔒",
+        _ => "ℹ️"
+    };
+
+    private string GetMessage(ConnectivityState state) => state switch
+    {
+        ConnectivityState.ConnectivityWarning => "Warning: Terminal has been offline for over 5 days. Connect to internet to avoid POS lockout.",
+        ConnectivityState.ConnectivityExpiry => "Connectivity Expiration: Terminal offline for 7+ days. License check required.",
+        ConnectivityState.RestrictedOperation => "Restricted Mode: Terminal offline window expired. Order creation is blocked.",
+        ConnectivityState.SynchronizationFailure => "Sync Issue: Offline orders queued locally. Reconnecting background sync...",
+        ConnectivityState.DeviceSuspension => "Device Suspended: Authorization revoked by cloud administrator.",
+        _ => "Offline operation mode."
+    };
+}

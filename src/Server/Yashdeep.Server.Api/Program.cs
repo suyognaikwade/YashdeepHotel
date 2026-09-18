@@ -1,67 +1,47 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using Yashdeep.Application.Authorization;
-using Yashdeep.Application.Contexts;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Yashdeep.Application.Interfaces;
 using Yashdeep.Application.Services;
-using Yashdeep.Domain.Contexts;
-using Yashdeep.Persistence.Cloud;
-using Yashdeep.Persistence.Cloud.Interceptors;
+using Yashdeep.Infrastructure.Hardware;
+using Yashdeep.Infrastructure.Persistence;
+using Yashdeep.Infrastructure.Security;
 using Yashdeep.Server.Api.Middleware;
+using Yashdeep.Shared.Hardware;
+using Yashdeep.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Foundation Composition Root: Add framework services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Register Contexts (Scoped for per-request isolation)
-builder.Services.AddScoped<RequestContextImpl>();
-builder.Services.AddScoped<IRequestContext>(sp => sp.GetRequiredService<RequestContextImpl>());
-builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<RequestContextImpl>().Tenant);
-builder.Services.AddScoped<IBranchContext>(sp => sp.GetRequiredService<RequestContextImpl>().Branch);
-builder.Services.AddScoped<IOutletContext>(sp => sp.GetRequiredService<RequestContextImpl>().Outlet);
-builder.Services.AddScoped<IDeviceContext>(sp => sp.GetRequiredService<RequestContextImpl>().Device);
-builder.Services.AddScoped<IUserContext>(sp => sp.GetRequiredService<RequestContextImpl>().User);
-
-// Register Tenant Validation Service (Singleton for memory test seeding / replaceable in production)
-builder.Services.AddSingleton<ITenantValidationService, InMemoryTenantValidationService>();
-
-// Register Interceptor & DbContext
-builder.Services.AddScoped<CloudTenantInterceptor>();
-builder.Services.AddDbContext<CloudDbContext>((sp, options) =>
-{
-    var interceptor = sp.GetRequiredService<CloudTenantInterceptor>();
-    options.UseInMemoryDatabase("YashdeepCloudDb")
-           .AddInterceptors(interceptor);
-});
-
-// Register Authorization Handlers
-builder.Services.AddScoped<IAuthorizationHandler, TenantAuthorizationHandler>();
-builder.Services.AddScoped<IAuthorizationHandler, OrganizationAccessAuthorizationHandler>();
-builder.Services.AddScoped<IAuthorizationHandler, BranchAccessAuthorizationHandler>();
-builder.Services.AddScoped<IAuthorizationHandler, OutletAccessAuthorizationHandler>();
-builder.Services.AddScoped<IAuthorizationHandler, DeviceAccessAuthorizationHandler>();
-builder.Services.AddScoped<IAuthorizationHandler, SystemAdminAuthorizationHandler>();
-
-// Configure Authorization Policies
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("TenantOnly", policy => policy.Requirements.Add(new TenantRequirement()));
-    options.AddPolicy("OrganizationScoped", policy => policy.Requirements.Add(new OrganizationAccessRequirement()));
-    options.AddPolicy("BranchScoped", policy => policy.Requirements.Add(new BranchAccessRequirement()));
-    options.AddPolicy("OutletScoped", policy => policy.Requirements.Add(new OutletAccessRequirement()));
-    options.AddPolicy("DeviceScoped", policy => policy.Requirements.Add(new DeviceAccessRequirement()));
-    options.AddPolicy("SystemAdminOnly", policy => policy.Requirements.Add(new SystemAdminRequirement()));
-});
+// Register trusted device foundation services
+builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
+builder.Services.AddSingleton<IAuditEventLogger, InMemoryAuditEventLogger>();
+builder.Services.AddSingleton<IDeviceTokenService, DeviceTokenService>();
+builder.Services.AddSingleton<IDeviceIdentityProvider, TestDeviceIdentityProvider>();
+builder.Services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
+builder.Services.AddScoped<IDeviceRegistrationService, DeviceRegistrationService>();
 
 var app = builder.Build();
 
-app.UseRouting();
-app.UseAuthentication();
-app.UseMiddleware<RequestContextMiddleware>();
+app.UseMiddleware<TenantContextMiddleware>();
 app.UseAuthorization();
+
+// Minimal health check endpoint for executable host validation
+app.MapGet("/health", () => Results.Ok(new
+{
+    Status = "Healthy",
+    Service = "Yashdeep.Server.Api",
+    TimestampUtc = DateTime.UtcNow,
+    Version = "1.0.0"
+}))
+.WithName("HealthCheck");
 
 app.MapControllers();
 
 app.Run();
 
+// Partial Program class declaration for WebApplicationFactory / Integration Testing
 public partial class Program { }
