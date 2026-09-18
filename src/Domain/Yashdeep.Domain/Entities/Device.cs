@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Yashdeep.Domain.Enums;
 using Yashdeep.Domain.Events;
+using Yashdeep.Shared.Primitives;
 
 namespace Yashdeep.Domain.Entities;
 

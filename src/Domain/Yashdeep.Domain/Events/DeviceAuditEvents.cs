@@ -1,10 +1,6 @@
-namespace Yashdeep.Domain.Events;
+using Yashdeep.Shared.Primitives;
 
-public interface IDomainEvent
-{
-    Guid EventId { get; }
-    DateTime OccurredOnUtc { get; }
-}
+namespace Yashdeep.Domain.Events;
 
 public abstract record DeviceAuditEvent(
     Guid EventId,
@@ -14,7 +10,10 @@ public abstract record DeviceAuditEvent(
     string HardwareFingerprint,
     DateTime OccurredOnUtc,
     string PerformedBy,
-    string Details) : IDomainEvent;
+    string Details) : IDomainEvent
+{
+    public DateTime OccurredUtc => OccurredOnUtc;
+}
 
 public record DeviceRegisteredEvent(
     Guid EventId,

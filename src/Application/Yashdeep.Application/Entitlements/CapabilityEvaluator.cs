@@ -14,7 +14,7 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
     private readonly IEntitlementTokenVerifier _tokenVerifier;
     private readonly Func<SignedEntitlementEnvelope?>? _currentEnvelopeProvider;
     private readonly Func<DateTime>? _currentTimeProvider;
-    private readonly ITenantContext? _tenantContext;
+    private readonly IEntitlementTenantContext? _tenantContext;
     private readonly IEntitlementCache? _entitlementCache;
     private readonly IEntitlementStore? _entitlementStore;
 
@@ -22,7 +22,7 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
         IEntitlementTokenVerifier tokenVerifier,
         Func<SignedEntitlementEnvelope?>? currentEnvelopeProvider = null,
         Func<DateTime>? currentTimeProvider = null,
-        ITenantContext? tenantContext = null,
+        IEntitlementTenantContext? tenantContext = null,
         IEntitlementCache? entitlementCache = null,
         IEntitlementStore? entitlementStore = null)
     {
@@ -94,7 +94,17 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
         }
 
         long currentUnix = ((DateTimeOffset)currentUtc).ToUnixTimeSeconds();
-        if (payload.OfflineGraceExpirationUnix > 0 && currentUnix > payload.OfflineGraceExpirationUnix)
+
+        if (payload.NotBeforeUnix > 0 && currentUnix < payload.NotBeforeUnix)
+        {
+            return new HashSet<CapabilityId>();
+        }
+
+        long effectiveExpirationUnix = payload.OfflineGraceExpirationUnix > 0
+            ? payload.OfflineGraceExpirationUnix
+            : payload.ExpirationUnix;
+
+        if (effectiveExpirationUnix > 0 && currentUnix > effectiveExpirationUnix)
         {
             return new HashSet<CapabilityId>();
         }
@@ -151,6 +161,7 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
     private SignedEntitlementEnvelope? ResolveEnvelopeForCurrentContext()
     {
         var activeTenantId = _tenantContext?.TenantId;
+        DateTime currentUtc = _currentTimeProvider!();
 
         // Try cached envelope if active tenant context is known
         if (!string.IsNullOrWhiteSpace(activeTenantId) && _entitlementCache != null)
@@ -158,7 +169,13 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
             var cached = _entitlementCache.GetCachedEnvelope(activeTenantId);
             if (cached != null)
             {
-                return cached;
+                if (IsEnvelopeValid(cached, activeTenantId, currentUtc))
+                {
+                    return cached;
+                }
+
+                // Invalidate stale or invalid cached envelope
+                _entitlementCache.InvalidateCache(activeTenantId);
             }
         }
 
@@ -171,12 +188,62 @@ public sealed class CapabilityEvaluator : ICapabilityEvaluator, IEntitlementToke
             envelope = _entitlementStore.GetEnvelopeForTenant(activeTenantId);
         }
 
-        // Cache envelope if available
+        // Cache envelope if available and valid
         if (envelope != null && !string.IsNullOrWhiteSpace(activeTenantId) && _entitlementCache != null)
         {
-            _entitlementCache.CacheEnvelope(activeTenantId, envelope);
+            if (IsEnvelopeValid(envelope, activeTenantId, currentUtc))
+            {
+                _entitlementCache.CacheEnvelope(activeTenantId, envelope);
+            }
+            else
+            {
+                _entitlementCache.InvalidateCache(activeTenantId);
+            }
         }
 
         return envelope;
+    }
+
+    private bool IsEnvelopeValid(SignedEntitlementEnvelope envelope, string activeTenantId, DateTime currentUtc)
+    {
+        if (!_tokenVerifier.VerifySignature(envelope))
+        {
+            return false;
+        }
+
+        var payload = ParsePayload(envelope);
+        if (payload == null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(activeTenantId, payload.TenantId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (payload.SubscriptionStatus.Equals("Suspended", StringComparison.OrdinalIgnoreCase) ||
+            payload.SubscriptionStatus.Equals("Terminated", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        long currentUnix = ((DateTimeOffset)currentUtc).ToUnixTimeSeconds();
+
+        if (payload.NotBeforeUnix > 0 && currentUnix < payload.NotBeforeUnix)
+        {
+            return false;
+        }
+
+        long effectiveExpirationUnix = payload.OfflineGraceExpirationUnix > 0
+            ? payload.OfflineGraceExpirationUnix
+            : payload.ExpirationUnix;
+
+        if (effectiveExpirationUnix > 0 && currentUnix > effectiveExpirationUnix)
+        {
+            return false;
+        }
+
+        return true;
     }
 }

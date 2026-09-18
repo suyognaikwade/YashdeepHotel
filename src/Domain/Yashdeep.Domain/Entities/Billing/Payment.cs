@@ -1,4 +1,5 @@
 using Yashdeep.Domain.ValueObjects;
+using Yashdeep.Shared.Time;
 
 namespace Yashdeep.Domain.Entities.Billing;
 
@@ -28,8 +29,13 @@ public class Payment
         PaymentMethod method,
         Money amount,
         string transactionReference,
-        string cashierUserId)
+        string cashierUserId,
+        IDateTimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (tenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        if (branchId == Guid.Empty) throw new ArgumentException("BranchId is required.", nameof(branchId));
+        if (billId == Guid.Empty) throw new ArgumentException("BillId is required.", nameof(billId));
         if (amount.Amount <= 0) throw new ArgumentOutOfRangeException(nameof(amount), "Payment amount must be greater than zero.");
 
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
@@ -39,7 +45,7 @@ public class Payment
         Method = method;
         Amount = amount;
         TransactionReference = transactionReference ?? string.Empty;
-        PaidAtUtc = DateTime.UtcNow;
+        PaidAtUtc = timeProvider.UtcNow;
         CashierUserId = cashierUserId ?? string.Empty;
     }
 }

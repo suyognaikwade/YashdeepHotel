@@ -21,6 +21,7 @@ builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
 builder.Services.AddSingleton<IAuditEventLogger, InMemoryAuditEventLogger>();
 builder.Services.AddSingleton<IDeviceTokenService, DeviceTokenService>();
 builder.Services.AddSingleton<IDeviceIdentityProvider, TestDeviceIdentityProvider>();
+builder.Services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
 builder.Services.AddScoped<IDeviceRegistrationService, DeviceRegistrationService>();
 
 var app = builder.Build();

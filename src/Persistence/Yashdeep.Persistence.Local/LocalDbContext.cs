@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Yashdeep.Application.Common.Interfaces;
 using Yashdeep.Domain.Entities;
 
 namespace Yashdeep.Persistence.Local;
@@ -10,6 +11,9 @@ namespace Yashdeep.Persistence.Local;
 public class LocalDbContext : DbContext
 {
     private readonly Guid? _currentTenantId;
+    private readonly ITenantContext? _tenantContext;
+
+    public Guid CurrentTenantId => _tenantContext?.TenantId ?? _currentTenantId ?? Guid.Empty;
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Branch> Branches => Set<Branch>();
@@ -21,10 +25,16 @@ public class LocalDbContext : DbContext
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<LocalSettings> LocalSettings => Set<LocalSettings>();
 
-    public LocalDbContext(DbContextOptions<LocalDbContext> options, Guid? currentTenantId = null)
+    public LocalDbContext(DbContextOptions<LocalDbContext> options, Guid? currentTenantId = null, ITenantContext? tenantContext = null)
         : base(options)
     {
         _currentTenantId = currentTenantId;
+        _tenantContext = tenantContext;
+    }
+
+    public LocalDbContext(DbContextOptions<LocalDbContext> options, ITenantContext tenantContext)
+        : this(options, null, tenantContext)
+    {
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -133,17 +143,15 @@ public class LocalDbContext : DbContext
             builder.HasKey(ls => ls.Id);
         });
 
-        // Global Query Filters for multi-tenant isolation on edge device when tenant context is active
-        if (_currentTenantId.HasValue && _currentTenantId != Guid.Empty)
-        {
-            modelBuilder.Entity<Branch>().HasQueryFilter(b => b.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<Outlet>().HasQueryFilter(o => o.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<Terminal>().HasQueryFilter(t => t.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<Device>().HasQueryFilter(d => d.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<User>().HasQueryFilter(u => u.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<Role>().HasQueryFilter(r => r.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<UserRole>().HasQueryFilter(ur => ur.TenantId == _currentTenantId.Value);
-            modelBuilder.Entity<LocalSettings>().HasQueryFilter(ls => ls.TenantId == _currentTenantId.Value);
-        }
+        // Global Query Filters for multi-tenant isolation on edge device when tenant context is active.
+        // Registered unconditionally on model creation using dynamic property evaluation to prevent cached-model tenant data leakage.
+        modelBuilder.Entity<Branch>().HasQueryFilter(b => CurrentTenantId == Guid.Empty || b.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Outlet>().HasQueryFilter(o => CurrentTenantId == Guid.Empty || o.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Terminal>().HasQueryFilter(t => CurrentTenantId == Guid.Empty || t.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Device>().HasQueryFilter(d => CurrentTenantId == Guid.Empty || d.TenantId == CurrentTenantId);
+        modelBuilder.Entity<User>().HasQueryFilter(u => CurrentTenantId == Guid.Empty || u.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Role>().HasQueryFilter(r => CurrentTenantId == Guid.Empty || r.TenantId == CurrentTenantId);
+        modelBuilder.Entity<UserRole>().HasQueryFilter(ur => CurrentTenantId == Guid.Empty || ur.TenantId == CurrentTenantId);
+        modelBuilder.Entity<LocalSettings>().HasQueryFilter(ls => CurrentTenantId == Guid.Empty || ls.TenantId == CurrentTenantId);
     }
 }

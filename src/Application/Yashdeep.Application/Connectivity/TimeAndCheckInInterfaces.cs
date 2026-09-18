@@ -17,7 +17,7 @@ public interface IServerTimeProvider
     /// <summary>
     /// Process a verified server check-in response to update authoritative time state.
     /// </summary>
-    void SynchronizeServerTime(DateTime serverTimeUtc);
+    void SynchronizeServerTime(DateTime serverTimeUtc, DateTime? localTimeUtc = null);
 }
 
 /// <summary>

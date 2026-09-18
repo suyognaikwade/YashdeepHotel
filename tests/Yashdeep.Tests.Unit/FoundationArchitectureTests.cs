@@ -25,6 +25,8 @@ public class FoundationArchitectureTests : IClassFixture<WebApplicationFactory<P
         var persistenceCloudType = typeof(Yashdeep.Persistence.Cloud.CloudDbContext);
         var persistenceLocalType = typeof(Yashdeep.Persistence.Local.LocalPosDbContext);
         var syncEngineType = typeof(Yashdeep.SyncEngine.Services.CloudInboxProcessor);
+        var clientBlazorType = typeof(Yashdeep.Client.Blazor.ExampleJsInterop);
+        var clientMauiType = typeof(Yashdeep.Client.Maui.YashdeepMauiHost);
         var apiProgramType = typeof(Program);
 
         Assert.NotNull(domainType);
@@ -34,6 +36,8 @@ public class FoundationArchitectureTests : IClassFixture<WebApplicationFactory<P
         Assert.NotNull(persistenceCloudType);
         Assert.NotNull(persistenceLocalType);
         Assert.NotNull(syncEngineType);
+        Assert.NotNull(clientBlazorType);
+        Assert.NotNull(clientMauiType);
         Assert.NotNull(apiProgramType);
     }
 

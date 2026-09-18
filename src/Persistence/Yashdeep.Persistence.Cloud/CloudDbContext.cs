@@ -8,7 +8,7 @@ namespace Yashdeep.Persistence.Cloud
     {
         private readonly ITenantContext? _tenantContext;
 
-        private Guid TenantIdFilter => _tenantContext?.TenantId ?? Guid.Empty;
+        private Guid CurrentTenantId => _tenantContext?.TenantId ?? Guid.Empty;
 
         public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
 
@@ -42,7 +42,7 @@ namespace Yashdeep.Persistence.Cloud
 
                 entity.HasIndex(e => new { e.TenantId, e.DeviceId, e.SequenceNumber });
 
-                entity.HasQueryFilter(e => TenantIdFilter == Guid.Empty || e.TenantId == TenantIdFilter);
+                entity.HasQueryFilter(e => CurrentTenantId != Guid.Empty && e.TenantId == CurrentTenantId);
             });
         }
     }
