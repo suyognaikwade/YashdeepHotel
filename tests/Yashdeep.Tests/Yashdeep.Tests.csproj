@@ -6,7 +6,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-</PropertyGroup>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
@@ -26,6 +27,7 @@
     <ProjectReference Include="..\..\src\Application\Yashdeep.Application\Yashdeep.Application.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Yashdeep.Infrastructure\Yashdeep.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Persistence\Yashdeep.Persistence.Local\Yashdeep.Persistence.Local.csproj" />
+    <ProjectReference Include="..\..\src\Client\Yashdeep.Client.Blazor\Yashdeep.Client.Blazor.csproj" />
   </ItemGroup>
 
 </Project>
