@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Application/">
+    <Project Path="src/Application/Yashdeep.Application/Yashdeep.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/Domain/">
+    <Project Path="src/Domain/Yashdeep.Domain/Yashdeep.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/Persistence/">
+    <Project Path="src/Persistence/Yashdeep.Persistence.Cloud/Yashdeep.Persistence.Cloud.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Yashdeep.Persistence.Cloud.Tests/Yashdeep.Persistence.Cloud.Tests.csproj" />
+  </Folder>
+</Solution>
